@@ -167,7 +167,28 @@ async function generateImage(model, prompt) {
   throw new Error("WaveSpeed timeout after 2min");
 }
 
-/* ─── Parse AI JSON output ─── */
+/* ─── Parse AI JSON output (tolerant of raw control chars in strings) ─── */
+
+function sanitizeJsonString(input) {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (escaped) { result += c; escaped = false; continue; }
+    if (c === "\\") { result += c; escaped = true; continue; }
+    if (c === '"') { result += c; inString = !inString; continue; }
+    if (inString) {
+      const code = c.charCodeAt(0);
+      if (c === "\n") { result += "\\n"; continue; }
+      if (c === "\r") { result += "\\r"; continue; }
+      if (c === "\t") { result += "\\t"; continue; }
+      if (code < 0x20) { result += "\\u" + code.toString(16).padStart(4, "0"); continue; }
+    }
+    result += c;
+  }
+  return result;
+}
 
 function extractJson(raw) {
   let s = raw.trim();
@@ -175,7 +196,12 @@ function extractJson(raw) {
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
   if (first !== -1 && last !== -1) s = s.slice(first, last + 1);
-  return JSON.parse(s);
+
+  try {
+    return JSON.parse(s);
+  } catch {
+    return JSON.parse(sanitizeJsonString(s));
+  }
 }
 
 /* ─── Main agent run ─── */

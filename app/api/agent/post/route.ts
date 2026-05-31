@@ -102,6 +102,47 @@ interface ArticleJson {
   topic?: string;
 }
 
+/**
+ * Escape unescaped control characters (newlines, tabs) that appear INSIDE
+ * JSON string literals. Groq Llama models sometimes output raw newlines
+ * inside HTML <p> content, which makes the JSON technically invalid.
+ */
+function sanitizeJsonString(input: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i];
+    if (escaped) {
+      result += c;
+      escaped = false;
+      continue;
+    }
+    if (c === "\\") {
+      result += c;
+      escaped = true;
+      continue;
+    }
+    if (c === '"') {
+      result += c;
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      const code = c.charCodeAt(0);
+      if (c === "\n") { result += "\\n"; continue; }
+      if (c === "\r") { result += "\\r"; continue; }
+      if (c === "\t") { result += "\\t"; continue; }
+      if (code < 0x20) {
+        result += "\\u" + code.toString(16).padStart(4, "0");
+        continue;
+      }
+    }
+    result += c;
+  }
+  return result;
+}
+
 function extractJson(raw: string): ArticleJson {
   let cleaned = raw.trim();
 
@@ -117,7 +158,14 @@ function extractJson(raw: string): ArticleJson {
     cleaned = cleaned.slice(firstBrace, lastBrace + 1);
   }
 
-  return JSON.parse(cleaned) as ArticleJson;
+  // First attempt: parse as-is
+  try {
+    return JSON.parse(cleaned) as ArticleJson;
+  } catch {
+    // Second attempt: sanitize control chars inside strings, then parse
+    const sanitized = sanitizeJsonString(cleaned);
+    return JSON.parse(sanitized) as ArticleJson;
+  }
 }
 
 /* ── POST: run the agent ── */
