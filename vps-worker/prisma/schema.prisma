@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+  posts        Post[]
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  color     String
+  emoji     String
+  posts     Post[]
+  createdAt DateTime @default(now())
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  posts     PostTag[]
+  createdAt DateTime  @default(now())
+}
+
+model Post {
+  id              String    @id @default(cuid())
+  title           String
+  slug            String    @unique
+  summary         String
+  content         String    @db.Text
+  featuredImage   String
+  seoTitle        String
+  metaDescription String
+  status          String    @default("draft")
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  authorId        String
+  author          User      @relation(fields: [authorId], references: [id])
+  categoryId      String
+  category        Category  @relation(fields: [categoryId], references: [id])
+  tags            PostTag[]
+  isAgentPost     Boolean   @default(false)
+  isBreaking      Boolean   @default(false)
+  imagePrompt     String?   @db.Text
+  imageStatus     String    @default("none") // "none" | "pending" | "done" | "failed"
+}
+
+model PostTag {
+  postId String
+  tagId  String
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+}
+
+model AgentSettings {
+  id              String   @id @default("singleton")
+  model           String   @default("claude-sonnet-4-6")
+  enabled         Boolean  @default(true)
+  topicFocus      String   @default("Indian news, politics, sports, tech, entertainment")
+  // AI provider for news posts: "anthropic" | "openai" | "groq"
+  postProvider    String   @default("anthropic")
+  // AI provider for chat enhancement: "anthropic" | "openai" | "groq"
+  chatProvider    String   @default("groq")
+  chatModel       String   @default("llama-3.3-70b-versatile")
+  // Image generation
+  imageModel      String   @default("wavespeed-ai/flux-schnell")
+  watermarkUrl    String   @default("")
+  useWebSearch    Boolean  @default(false)
+  // Article word limit (target length)
+  wordLimit       Int      @default(600)
+  // Optional: extra writing instructions
+  writingStyle    String   @default("Professional journalism with specific names, dates, statistics, and quotes from real people. No filler. No 'experts say' without naming them.")
+  // Auto-reply settings
+  autoReplyEnabled Boolean @default(true)
+  autoReplyMinutes Int     @default(60)
+  updatedAt       DateTime @updatedAt
+}
+
+model AgentLog {
+  id        String   @id @default(cuid())
+  timestamp DateTime @default(now())
+  model     String
+  status    String
+  title     String?
+  error     String?
+}
+
+model AIUsage {
+  id            String   @id @default(cuid())
+  provider      String   // "anthropic" | "openai" | "groq"
+  model         String
+  purpose       String   // "post" | "chat_enhance" | "auto_reply" | "other"
+  inputTokens   Int      @default(0)
+  outputTokens  Int      @default(0)
+  totalTokens   Int      @default(0)
+  costUsd       Float    @default(0)
+  durationMs    Int      @default(0)
+  success       Boolean  @default(true)
+  error         String?
+  createdAt     DateTime @default(now())
+}
+
+model CustomPage {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  headline    String   @default("")
+  subheadline String   @default("")
+  content     String   @db.Text
+  design      String   @default("cyber-noir")
+  heroImage   String   @default("")
+  image2      String   @default("")
+  logoUrl     String   @default("")
+  ctaText     String   @default("")
+  ctaUrl      String   @default("")
+  sections    String   @default("[]") @db.Text
+  published   Boolean  @default(false)
+  metaTitle   String   @default("")
+  metaDesc    String   @default("")
+  customCss   String   @default("") @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  disputes    DisputeChat[]
+}
+
+// ─── Dispute / Report Chat System ───
+
+model DisputeChat {
+  id             String   @id @default(cuid())
+  email          String
+  name           String
+  subject        String
+  description    String   @db.Text
+  secretToken    String   @unique @default(cuid())
+  customPageId   String?
+  customPage     CustomPage? @relation(fields: [customPageId], references: [id], onDelete: SetNull)
+  customPageSlug String   @default("")
+  status         String   @default("open")
+  messages       DisputeMessage[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model DisputeMessage {
+  id        String      @id @default(cuid())
+  chatId    String
+  chat      DisputeChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender    String      // "user" | "admin"
+  content   String      @db.Text
+  imageUrl  String      @default("")
+  createdAt DateTime    @default(now())
+}

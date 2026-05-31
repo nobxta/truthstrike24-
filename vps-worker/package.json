@@ -4,15 +4,14 @@
   "description": "VPS worker for AI agent — generates news articles without Vercel timeout limits",
   "main": "agent.js",
   "scripts": {
+    "start": "node agent.js --watch --every=60",
     "run": "node agent.js",
-    "watch": "node agent.js --watch",
-    "watch-30": "node agent.js --watch --every=30",
-    "watch-60": "node agent.js --watch --every=60",
-    "watch-120": "node agent.js --watch --every=120",
-    "prisma-gen": "prisma generate"
+    "watch": "node agent.js --watch --every=60",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "dotenv": "^16.4.5",
     "prisma": "^6.19.3"
   },
   "engines": {

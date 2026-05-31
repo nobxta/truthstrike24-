@@ -1,15 +1,23 @@
 #!/usr/bin/env node
 /**
  * TruthStrike24 — VPS Worker
- * Runs on a VPS (Oracle Cloud Free / Hetzner / DigitalOcean).
+ * Runs on a VPS (Oracle Cloud Free / Hetzner / DigitalOcean / Pterodactyl).
  * Reads agent settings + writes posts to the SAME Neon DB as Vercel.
  *
  * No timeouts — uses big models with web_search + long articles.
  *
  * Usage:
- *   node agent.js           # run once
- *   node agent.js --watch   # run every 60 min in a loop (no cron needed)
+ *   node agent.js                            # run once
+ *   node agent.js --watch                    # run every 60 min in a loop
+ *   node agent.js --watch --every=30         # custom interval
  */
+
+// Load .env into process.env (works on any Node 16+)
+try {
+  require("dotenv").config();
+} catch {
+  /* dotenv not installed — assume env vars come from Pterodactyl panel */
+}
 
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
