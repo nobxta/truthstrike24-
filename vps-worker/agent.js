@@ -429,12 +429,170 @@ async function getLastAgentPostTime() {
 
 let lastEnabledLogState = null; // dedupe enabled/disabled state logs
 
+/* ─── Generation Job Processor ─── */
+
+/**
+ * Process ONE pending manual-generation job (from frontend New Post AI flow).
+ * Returns true if a job was processed, false if none were pending.
+ */
+async function processOneGenerationJob() {
+  // Atomically grab the next pending job and mark it running
+  // Use a transaction-ish update to avoid double-processing in case multiple
+  // workers run (we only have 1, but safe pattern anyway)
+  const job = await prisma.generationJob.findFirst({
+    where: { status: "pending" },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!job) return false;
+
+  // Lock by marking running
+  const locked = await prisma.generationJob.updateMany({
+    where: { id: job.id, status: "pending" },
+    data: { status: "running", startedAt: new Date() },
+  });
+  if (locked.count === 0) return true; // someone else grabbed it
+
+  const jobStart = Date.now();
+  console.log(`\n[${new Date().toISOString()}] 📥 Picked up job ${job.id}`);
+  console.log(`   Context: "${job.context.slice(0, 80)}..."`);
+  console.log(`   Model: ${job.provider}/${job.model}, words: ${job.wordLimit}, image: ${job.generateImage}`);
+
+  try {
+    const minWords = Math.max(200, job.wordLimit - 100);
+    const maxWords = job.wordLimit + 100;
+    const today = new Date().toISOString().split("T")[0];
+
+    const systemPrompt = `You are a top-tier news journalist writing for TruthStrike24.
+
+TASK: ${job.useWebSearch && job.provider === "anthropic" ? "Use web_search to find a real recent story related to the brief" : "Write a comprehensive article based on the brief"}.
+
+LENGTH: ${minWords}-${maxWords} words (target ${job.wordLimit}).
+QUALITY: Include REAL named people, exact statistics, direct quotes from named sources. No filler.
+
+OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble):
+{
+  "title": "Headline under 90 chars",
+  "slug": "url-friendly-slug",
+  "summary": "2 sentences with specific facts (140-180 chars)",
+  "content": "<p>HTML body. ${minWords}-${maxWords} words. Real names, exact numbers, direct quotes.</p>",
+  "seoTitle": "SEO title under 60 chars",
+  "metaDescription": "Under 155 chars",
+  "imagePrompt": "Photojournalism scene description. NO TEXT/LOGOS in image.",
+  "source": "${job.useWebSearch ? "URL of source article" : "Written from knowledge"}"
+}
+
+Today: ${today}`;
+
+    const userPrompt = `Article brief: ${job.context}\n\nWrite the full article. Return JSON only.`;
+
+    console.log(`🧠 Calling ${job.provider}...`);
+    const aiStart = Date.now();
+    let aiResult;
+    if (job.provider === "anthropic") {
+      aiResult = await callClaude(job.model, systemPrompt, userPrompt, job.useWebSearch);
+    } else if (job.provider === "openai") {
+      aiResult = await callOpenAI(job.model, systemPrompt, userPrompt);
+    } else {
+      aiResult = await callGroq(job.model, systemPrompt, userPrompt);
+    }
+    console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
+
+    let parsed;
+    try {
+      parsed = extractJson(aiResult.text);
+    } catch (e) {
+      throw new Error(`JSON parse failed: ${e.message}`);
+    }
+    if (!parsed.title || !parsed.content) {
+      throw new Error("AI response missing title or content");
+    }
+
+    let imageUrl = "";
+    if (job.generateImage && parsed.imagePrompt) {
+      console.log(`🎨 Generating image (${job.imageModel})...`);
+      const imgStart = Date.now();
+      try {
+        imageUrl = await generateImage(job.imageModel, parsed.imagePrompt);
+        console.log(`   ✓ Image done in ${((Date.now() - imgStart) / 1000).toFixed(1)}s`);
+      } catch (imgErr) {
+        console.error(`   ⚠ Image gen failed: ${imgErr.message}`);
+        // Continue without image — job still completes
+      }
+    }
+
+    const totalMs = Date.now() - jobStart;
+
+    await prisma.generationJob.update({
+      where: { id: job.id },
+      data: {
+        status: "done",
+        resultJson: JSON.stringify(parsed),
+        imageUrl: imageUrl || null,
+        inputTokens: aiResult.inputTokens,
+        outputTokens: aiResult.outputTokens,
+        durationMs: totalMs,
+        completedAt: new Date(),
+      },
+    });
+
+    // Track in AIUsage
+    if (aiResult.inputTokens > 0) {
+      await prisma.aIUsage.create({
+        data: {
+          provider: job.provider,
+          model: job.model,
+          purpose: "manual_post",
+          inputTokens: aiResult.inputTokens,
+          outputTokens: aiResult.outputTokens,
+          totalTokens: aiResult.inputTokens + aiResult.outputTokens,
+          costUsd: 0,
+          durationMs: totalMs,
+          success: true,
+        },
+      });
+    }
+
+    console.log(`✅ Job ${job.id} complete in ${(totalMs / 1000).toFixed(1)}s · "${parsed.title}"`);
+  } catch (error) {
+    console.error(`❌ Job ${job.id} failed: ${error.message}`);
+    await prisma.generationJob.update({
+      where: { id: job.id },
+      data: {
+        status: "failed",
+        errorMsg: error.message.slice(0, 1000),
+        completedAt: new Date(),
+        durationMs: Date.now() - jobStart,
+      },
+    });
+  }
+
+  return true;
+}
+
 async function loop() {
-  console.log(`\n🟢 Worker started. Polling DB every 60 seconds.`);
-  console.log(`   Toggle the Active switch in frontend admin to pause/resume instantly.\n`);
+  console.log(`\n🟢 Worker started. Polling DB every 60s for cron + every 5s for manual jobs.`);
+  console.log(`   Toggle the Active switch in frontend admin to pause/resume.\n`);
 
   // On startup, ALWAYS try one run (good for testing visibility)
   await runAgent();
+
+  // Independent job-processing loop (runs in parallel with cron loop)
+  // Polls every 5s for pending generation jobs from the frontend.
+  (async function jobLoop() {
+    while (true) {
+      try {
+        // Drain all pending jobs (could be multiple)
+        let any = true;
+        while (any) {
+          any = await processOneGenerationJob();
+        }
+      } catch (e) {
+        console.error("[job loop error]", e.message);
+      }
+      await new Promise((r) => setTimeout(r, 5 * 1000));
+    }
+  })();
 
   while (true) {
     // Sleep 60 seconds between checks

@@ -122,6 +122,7 @@ export default function AiPostForm({ categories, tags }: Props) {
   /* ── Stage + generated draft ── */
   const [stage, setStage] = useState<Stage>("brief");
   const [generating, setGenerating] = useState(false);
+  const [genStatus, setGenStatus] = useState<"queued" | "running" | "done" | null>(null);
   const [regeneratingImage, setRegeneratingImage] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -172,6 +173,80 @@ export default function AiPostForm({ categories, tags }: Props) {
     );
   }
 
+  /* ── Job queue helpers ── */
+
+  /** Submit a generation job and poll until done. Throws on failure. */
+  async function runGenerationJob(opts: {
+    generateImage: boolean;
+    onStatus?: (s: "queued" | "running" | "done") => void;
+  }): Promise<{
+    title: string;
+    slug?: string;
+    summary?: string;
+    content: string;
+    seoTitle?: string;
+    metaDescription?: string;
+    imagePrompt?: string;
+    source?: string;
+    imageUrl?: string;
+  }> {
+    // 1. Create job (instant return)
+    const createRes = await fetch("/api/posts/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        context,
+        wordLimit,
+        provider,
+        model,
+        useWebSearch,
+        generateImage: opts.generateImage,
+        imageModel,
+      }),
+    });
+    const createData = await createRes.json();
+    if (!createRes.ok) {
+      throw new Error(createData.error || "Failed to create job");
+    }
+    const jobId = createData.jobId;
+    opts.onStatus?.("queued");
+
+    // 2. Poll every 2 seconds until done/failed (max 120s)
+    const deadline = Date.now() + 120 * 1000;
+    let lastStatus = "pending";
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const pollRes = await fetch(`/api/posts/generate/${jobId}`);
+      const pollData = await pollRes.json();
+      if (!pollRes.ok) {
+        throw new Error(pollData.error || "Poll failed");
+      }
+      if (pollData.status === "running" && lastStatus !== "running") {
+        opts.onStatus?.("running");
+        lastStatus = "running";
+      }
+      if (pollData.status === "done") {
+        opts.onStatus?.("done");
+        const article = pollData.article || {};
+        return {
+          title: String(article.title || ""),
+          slug: String(article.slug || ""),
+          summary: String(article.summary || ""),
+          content: String(article.content || ""),
+          seoTitle: String(article.seoTitle || ""),
+          metaDescription: String(article.metaDescription || ""),
+          imagePrompt: String(article.imagePrompt || ""),
+          source: String(article.source || ""),
+          imageUrl: pollData.imageUrl || undefined,
+        };
+      }
+      if (pollData.status === "failed") {
+        throw new Error(pollData.error || "Generation failed on VPS");
+      }
+    }
+    throw new Error("Timed out after 2 minutes — check VPS worker logs");
+  }
+
   /* ── Generate article + (maybe) image ── */
   async function handleGenerate() {
     setError("");
@@ -181,90 +256,60 @@ export default function AiPostForm({ categories, tags }: Props) {
       return;
     }
     setGenerating(true);
+    setGenStatus("queued");
     try {
-      const res = await fetch("/api/posts/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          context,
-          wordLimit,
-          provider,
-          model,
-          useWebSearch,
-          generateImage: imageStrategy === "ai",
-          imageModel,
-        }),
+      const data = await runGenerationJob({
+        generateImage: imageStrategy === "ai",
+        onStatus: (s) => setGenStatus(s),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Generation failed");
-        setGenerating(false);
-        return;
-      }
-      setTitle(data.title || "");
-      setSlug(slugify(data.slug || data.title || ""));
+      setTitle(data.title);
+      setSlug(slugify(data.slug || data.title));
       setSlugEdited(false);
       setSummary(data.summary || "");
-      setContent(data.content || "");
-      setSeoTitle(data.seoTitle || data.title || "");
+      setContent(data.content);
+      setSeoTitle(data.seoTitle || data.title);
       setMetaDescription(data.metaDescription || data.summary || "");
       setImagePrompt(data.imagePrompt || "");
       setSourceUrl(data.source || "");
       if (imageStrategy === "ai") setFeaturedImage(data.imageUrl || "");
       if (imageStrategy === "upload") setFeaturedImage(uploadedImage);
       if (imageStrategy === "none") setFeaturedImage("");
-      if (data.imageError) {
-        setError(`Article generated, but image failed: ${data.imageError}`);
-      } else {
-        setSuccess("Article generated");
-        setTimeout(() => setSuccess(""), 3000);
-      }
+      setSuccess("Article generated");
+      setTimeout(() => setSuccess(""), 3000);
       setStage("draft");
-    } catch {
-      setError("Network error while generating");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
     }
     setGenerating(false);
+    setGenStatus(null);
   }
 
   /* ── Regenerate just the article (keep settings/brief) ── */
   async function handleRegenerateArticle() {
     setError("");
     setGenerating(true);
+    setGenStatus("queued");
     try {
-      const res = await fetch("/api/posts/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          context,
-          wordLimit,
-          provider,
-          model,
-          useWebSearch,
-          generateImage: false, // keep existing image
-          imageModel,
-        }),
+      const data = await runGenerationJob({
+        generateImage: false, // keep existing image
+        onStatus: (s) => setGenStatus(s),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Regeneration failed");
-        setGenerating(false);
-        return;
-      }
-      setTitle(data.title || "");
-      setSlug(slugify(data.slug || data.title || ""));
+      setTitle(data.title);
+      setSlug(slugify(data.slug || data.title));
       setSlugEdited(false);
       setSummary(data.summary || "");
-      setContent(data.content || "");
-      setSeoTitle(data.seoTitle || data.title || "");
+      setContent(data.content);
+      setSeoTitle(data.seoTitle || data.title);
       setMetaDescription(data.metaDescription || data.summary || "");
       setImagePrompt(data.imagePrompt || imagePrompt);
       setSourceUrl(data.source || "");
       setSuccess("Article regenerated");
       setTimeout(() => setSuccess(""), 3000);
-    } catch {
-      setError("Network error while regenerating");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Regeneration failed");
     }
     setGenerating(false);
+    setGenStatus(null);
   }
 
   /* ── Regenerate just the image with the (possibly edited) prompt ── */
@@ -388,6 +433,7 @@ export default function AiPostForm({ categories, tags }: Props) {
           uploadedImage={uploadedImage}
           setUploadedImage={setUploadedImage}
           generating={generating}
+          genStatus={genStatus}
           cost={cost}
           onGenerate={handleGenerate}
         />
@@ -758,6 +804,7 @@ interface BriefPanelProps {
   uploadedImage: string;
   setUploadedImage: (s: string) => void;
   generating: boolean;
+  genStatus: "queued" | "running" | "done" | null;
   cost: number;
   onGenerate: () => void;
 }
@@ -953,7 +1000,10 @@ function BriefPanel(p: BriefPanelProps) {
           {p.generating ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              Generating draft...
+              {p.genStatus === "queued" && "Queued — VPS picking up..."}
+              {p.genStatus === "running" && "Generating on VPS..."}
+              {p.genStatus === "done" && "Finalizing..."}
+              {!p.genStatus && "Queueing job..."}
             </>
           ) : (
             <>

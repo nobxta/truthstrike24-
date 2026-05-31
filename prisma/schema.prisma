@@ -120,6 +120,38 @@ model AIUsage {
   createdAt     DateTime @default(now())
 }
 
+// ─── Generation Job Queue (frontend → VPS worker pickup) ───
+// User clicks Generate → Vercel creates job (instant) → VPS picks it up
+// → does the slow AI work → updates job → frontend polls and shows result.
+model GenerationJob {
+  id           String   @id @default(cuid())
+  status       String   @default("pending") // pending | running | done | failed
+  // Input params (what to generate)
+  context      String   @db.Text
+  wordLimit    Int      @default(600)
+  provider     String   @default("groq")
+  model        String   @default("llama-3.3-70b-versatile")
+  useWebSearch Boolean  @default(false)
+  generateImage Boolean @default(true)
+  imageModel   String   @default("wavespeed-ai/flux-schnell")
+  // Output (filled in by VPS worker)
+  resultJson   String?  @db.Text // Article JSON: title, slug, summary, content, etc
+  imageUrl     String?
+  errorMsg     String?
+  // Telemetry
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costUsd      Float    @default(0)
+  durationMs   Int      @default(0)
+  // Auth
+  userId       String?  // who requested it
+  createdAt    DateTime @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+
+  @@index([status, createdAt])
+}
+
 model CustomPage {
   id          String   @id @default(cuid())
   title       String
