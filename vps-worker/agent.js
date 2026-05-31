@@ -384,29 +384,83 @@ async function isEnabled() {
   }
 }
 
+/**
+ * Get the timestamp of the last agent-generated post.
+ * Used to calculate when the next post is due.
+ */
+async function getLastAgentPostTime() {
+  try {
+    const last = await prisma.post.findFirst({
+      where: { isAgentPost: true },
+      orderBy: { publishedAt: "desc" },
+      select: { publishedAt: true },
+    });
+    return last?.publishedAt?.getTime() ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+let lastEnabledLogState = null; // dedupe enabled/disabled state logs
+
 async function loop() {
-  // Run once immediately on startup (if enabled)
+  console.log(`\n🟢 Worker started. Polling DB every 60 seconds.`);
+  console.log(`   Toggle the Active switch in frontend admin to pause/resume instantly.\n`);
+
+  // On startup, ALWAYS try one run (good for testing visibility)
   await runAgent();
 
   while (true) {
-    const interval = await getIntervalMinutes();
-    const enabled = await isEnabled();
+    // Sleep 60 seconds between checks
+    await new Promise((r) => setTimeout(r, 60 * 1000));
 
-    if (enabled) {
-      console.log(`\n⏰ Next run in ${interval} minutes (configurable from frontend)`);
-    } else {
-      console.log(`\n⏸  Agent paused (toggle Off in frontend). Re-checking in ${interval} minutes.`);
+    try {
+      const settings = await prisma.agentSettings.findUnique({
+        where: { id: "singleton" },
+      });
+      if (!settings) {
+        console.log(`[${new Date().toISOString()}] ⚠ Settings row not found, retrying in 60s`);
+        continue;
+      }
+
+      // Log enable/pause state changes (don't spam — only on change)
+      if (lastEnabledLogState !== settings.enabled) {
+        if (settings.enabled) {
+          console.log(`\n[${new Date().toISOString()}] ▶ Agent RESUMED via frontend toggle`);
+        } else {
+          console.log(`\n[${new Date().toISOString()}] ⏸ Agent PAUSED via frontend toggle`);
+        }
+        lastEnabledLogState = settings.enabled;
+      }
+
+      if (!settings.enabled) {
+        // Paused — log heartbeat every 10 minutes so user knows worker is alive
+        const now = new Date();
+        if (now.getMinutes() % 10 === 0) {
+          console.log(`[${now.toISOString()}] ⏸  Paused (heartbeat). Toggle ON in admin to resume.`);
+        }
+        continue;
+      }
+
+      const intervalMin = Math.max(1, settings.postIntervalMinutes || 60);
+      const lastPostMs = await getLastAgentPostTime();
+      const elapsedMin = lastPostMs === 0 ? Infinity : (Date.now() - lastPostMs) / 60000;
+      const remainingMin = intervalMin - elapsedMin;
+
+      if (remainingMin <= 0) {
+        // Time to post!
+        console.log(`\n[${new Date().toISOString()}] ⚡ Interval elapsed (${elapsedMin === Infinity ? "first run" : elapsedMin.toFixed(1) + "min since last"}). Generating...`);
+        await runAgent();
+      } else {
+        // Not yet time — log countdown every 5 minutes (not every minute, too noisy)
+        const now = new Date();
+        if (now.getMinutes() % 5 === 0) {
+          console.log(`[${now.toISOString()}] ⏰ Next post in ${remainingMin.toFixed(1)}min · interval=${intervalMin}min · model=${settings.postProvider}/${settings.model}`);
+        }
+      }
+    } catch (err) {
+      console.error(`[${new Date().toISOString()}] Loop error:`, err.message);
     }
-
-    // Sleep `interval` minutes, but check every minute so toggle changes are responsive
-    const tickMs = 60 * 1000;
-    const totalTicks = interval;
-    for (let i = 0; i < totalTicks; i++) {
-      await new Promise((r) => setTimeout(r, tickMs));
-    }
-
-    // After sleep, run again (runAgent checks enabled internally)
-    await runAgent();
   }
 }
 

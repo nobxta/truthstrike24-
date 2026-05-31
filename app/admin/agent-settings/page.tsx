@@ -22,6 +22,8 @@ import {
   Play,
   ExternalLink,
   XCircle,
+  Radio,
+  Newspaper,
 } from "lucide-react";
 import TopBar from "@/components/admin/TopBar";
 import { PROVIDER_MODELS } from "@/lib/ai-providers";
@@ -204,10 +206,63 @@ interface RunResult {
   raw?: string;
 }
 
+interface AgentStatus {
+  enabled: boolean;
+  intervalMinutes: number;
+  provider: string;
+  model: string;
+  imageModel: string;
+  wordLimit: number;
+  useWebSearch: boolean;
+  lastPost: {
+    id: string;
+    title: string;
+    slug: string;
+    url: string;
+    featuredImage: string;
+    publishedAt: string;
+    imageStatus: string;
+    category: string;
+    categoryColor: string;
+    usage: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      costUsd: number;
+      durationMs: number;
+      model: string;
+      provider: string;
+    } | null;
+  } | null;
+  nextPostAt: string | null;
+  secondsUntilNextPost: number | null;
+  stats: { postsToday: number; postsTotal: number };
+  recentPosts: {
+    id: string;
+    title: string;
+    slug: string;
+    url: string;
+    featuredImage: string;
+    publishedAt: string;
+    imageStatus: string;
+    category: string;
+  }[];
+  recentLogs: {
+    id: string;
+    timestamp: string;
+    status: string;
+    title: string | null;
+    error: string | null;
+    model: string;
+  }[];
+}
+
 export default function AgentSettingsPage() {
   const [s, setS] = useState<Settings>(DEFAULT);
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [logs, setLogs] = useState<AgentLogEntry[]>([]);
+  const [status, setStatus] = useState<AgentStatus | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -216,10 +271,11 @@ export default function AgentSettingsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [sRes, uRes, lRes] = await Promise.all([
+      const [sRes, uRes, lRes, stRes] = await Promise.all([
         fetch("/api/agent/settings"),
         fetch("/api/ai/usage"),
         fetch("/api/agent/post"),
+        fetch("/api/agent/status"),
       ]);
       if (sRes.ok) setS(await sRes.json());
       if (uRes.ok) setUsage(await uRes.json());
@@ -227,9 +283,38 @@ export default function AgentSettingsPage() {
         const data = await lRes.json();
         setLogs(data.logs || []);
       }
+      if (stRes.ok) {
+        const stData: AgentStatus = await stRes.json();
+        setStatus(stData);
+        setCountdown(stData.secondsUntilNextPost);
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
+
+  // Poll status every 10 seconds (lightweight)
+  useEffect(() => {
+    const poll = setInterval(async () => {
+      try {
+        const r = await fetch("/api/agent/status");
+        if (r.ok) {
+          const d: AgentStatus = await r.json();
+          setStatus(d);
+          setCountdown(d.secondsUntilNextPost);
+        }
+      } catch { /* */ }
+    }, 10000);
+    return () => clearInterval(poll);
+  }, []);
+
+  // Local countdown tick (every second so UI feels alive)
+  useEffect(() => {
+    if (countdown === null || !status?.enabled) return;
+    const tick = setInterval(() => {
+      setCountdown((c) => (c === null || c <= 0 ? 0 : c - 1));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [countdown, status?.enabled]);
 
   const runAgent = async () => {
     setRunning(true);
@@ -287,6 +372,29 @@ export default function AgentSettingsPage() {
   const cp = s.chatProvider as Provider;
   const u = usage;
 
+  // Format countdown as "12m 34s" or "45s"
+  const fmtCountdown = (sec: number | null): string => {
+    if (sec === null) return "—";
+    if (sec <= 0) return "Posting now!";
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const sRem = sec % 60;
+    if (h > 0) return `${h}h ${m}m ${sRem}s`;
+    if (m > 0) return `${m}m ${sRem}s`;
+    return `${sRem}s`;
+  };
+
+  const fmtAgo = (iso: string | null): string => {
+    if (!iso) return "—";
+    const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (sec < 60) return `${sec}s ago`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  };
+
   const speedInfo = MODEL_SPEED_GUIDE.find((m) => m.id === s.model);
   const colorMap: Record<string, string> = {
     emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
@@ -303,6 +411,165 @@ export default function AgentSettingsPage() {
         <div className="flex flex-col xl:flex-row gap-6">
           {/* ═══ LEFT: Settings ═══ */}
           <div className="flex-1 min-w-0 space-y-6 max-w-2xl">
+
+            {/* ═══ Live Status Card ═══ */}
+            {status && (
+              <div className={`rounded-xl border-2 overflow-hidden transition-colors ${
+                status.enabled
+                  ? "bg-gradient-to-br from-emerald-50 to-white border-emerald-200"
+                  : "bg-gradient-to-br from-gray-50 to-white border-gray-200"
+              }`}>
+                <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                    status.enabled ? "bg-emerald-500" : "bg-gray-300"
+                  }`}>
+                    <Radio size={18} className="text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-[14px] font-bold text-gray-900 flex items-center gap-2">
+                      Live Agent Status
+                      {status.enabled && (
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      {status.enabled ? "Auto-publishing news articles" : "Paused — toggle Active to resume"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold">Today / Total</p>
+                    <p className="text-sm font-bold text-gray-900">{status.stats.postsToday} / {status.stats.postsTotal}</p>
+                  </div>
+                </div>
+
+                {/* Countdown + Last Post side-by-side */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-100">
+                  {/* Next post countdown */}
+                  <div className="bg-white p-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Clock size={12} className="text-amber-500" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Next Post In</span>
+                    </div>
+                    <p className={`text-2xl font-bold tabular-nums ${status.enabled ? "text-emerald-600" : "text-gray-300"}`}>
+                      {status.enabled ? fmtCountdown(countdown) : "Paused"}
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      Interval: every {status.intervalMinutes < 60 ? `${status.intervalMinutes} min` : `${(status.intervalMinutes / 60).toFixed(1)} hr`}
+                    </p>
+                  </div>
+
+                  {/* Last post */}
+                  <div className="bg-white p-4">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Newspaper size={12} className="text-blue-500" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Last Post</span>
+                    </div>
+                    {status.lastPost ? (
+                      <>
+                        <a
+                          href={status.lastPost.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[13px] font-bold text-gray-900 hover:text-blue-600 line-clamp-2 leading-snug"
+                        >
+                          {status.lastPost.title}
+                        </a>
+                        <div className="flex items-center gap-2 mt-1.5 text-[11px] text-gray-500">
+                          <span>{fmtAgo(status.lastPost.publishedAt)}</span>
+                          {status.lastPost.usage && (
+                            <>
+                              <span>·</span>
+                              <span>{fmtDuration(status.lastPost.usage.durationMs)}</span>
+                              <span>·</span>
+                              <span>{fmtTokens(status.lastPost.usage.totalTokens)} tok</span>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-400">No posts yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Last post details + image */}
+                {status.lastPost && (
+                  <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center gap-3">
+                    {status.lastPost.featuredImage && (
+                      <div className="w-16 h-12 rounded overflow-hidden shrink-0 border border-gray-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={status.lastPost.featuredImage} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {status.lastPost.category && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: status.lastPost.categoryColor + "20", color: status.lastPost.categoryColor }}>
+                            {status.lastPost.category}
+                          </span>
+                        )}
+                        {status.lastPost.usage && (
+                          <span className="text-[10px] text-gray-500">
+                            {status.lastPost.usage.provider}/{status.lastPost.usage.model.slice(0, 30)}
+                          </span>
+                        )}
+                        {status.lastPost.usage && status.lastPost.usage.costUsd > 0 && (
+                          <span className="text-[10px] font-bold text-amber-600">
+                            {fmtCost(status.lastPost.usage.costUsd)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <a
+                      href={status.lastPost.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                    >
+                      View <ExternalLink size={11} />
+                    </a>
+                  </div>
+                )}
+
+                {/* Recent posts (collapsible feel) */}
+                {status.recentPosts.length > 1 && (
+                  <div className="border-t border-gray-100">
+                    <div className="px-5 py-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Recent Posts ({status.recentPosts.length})</span>
+                    </div>
+                    <div className="max-h-[200px] overflow-y-auto">
+                      {status.recentPosts.slice(1).map((p) => (
+                        <a
+                          key={p.id}
+                          href={p.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block px-5 py-2 border-t border-gray-50 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {p.featuredImage && (
+                              <div className="w-10 h-7 rounded overflow-hidden shrink-0 border border-gray-200">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={p.featuredImage} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[12px] font-medium text-gray-800 truncate">{p.title}</p>
+                              <p className="text-[10px] text-gray-400">{fmtAgo(p.publishedAt)}</p>
+                            </div>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* News Article Agent */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
