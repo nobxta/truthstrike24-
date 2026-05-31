@@ -52,6 +52,7 @@ export async function PUT(req: NextRequest) {
       postIntervalMinutes?: number;
       autoReplyEnabled?: boolean;
       autoReplyMinutes?: number;
+      imageGenEnabled?: boolean;
     };
 
     const settings = await prisma.agentSettings.upsert({
@@ -71,6 +72,7 @@ export async function PUT(req: NextRequest) {
         ...(body.postIntervalMinutes !== undefined && { postIntervalMinutes: body.postIntervalMinutes }),
         ...(body.autoReplyEnabled !== undefined && { autoReplyEnabled: body.autoReplyEnabled }),
         ...(body.autoReplyMinutes !== undefined && { autoReplyMinutes: body.autoReplyMinutes }),
+        ...(body.imageGenEnabled !== undefined && { imageGenEnabled: body.imageGenEnabled }),
       },
       create: {
         id: "singleton",
@@ -88,6 +90,7 @@ export async function PUT(req: NextRequest) {
         postIntervalMinutes: body.postIntervalMinutes,
         autoReplyEnabled: body.autoReplyEnabled,
         autoReplyMinutes: body.autoReplyMinutes,
+        imageGenEnabled: body.imageGenEnabled,
       },
     });
 

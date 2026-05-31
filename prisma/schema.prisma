@@ -91,6 +91,8 @@ model AgentSettings {
   // Auto-reply settings
   autoReplyEnabled Boolean @default(true)
   autoReplyMinutes Int     @default(60)
+  // Image agent toggle
+  imageGenEnabled Boolean  @default(true)
   updatedAt       DateTime @updatedAt
 }
 

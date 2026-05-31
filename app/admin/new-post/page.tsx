@@ -1,5 +1,5 @@
 import TopBar from "@/components/admin/TopBar";
-import PostForm from "@/components/admin/PostForm";
+import NewPostShell from "@/components/admin/NewPostShell";
 import { prisma } from "@/lib/db";
 
 export default async function NewPostPage() {
@@ -11,7 +11,7 @@ export default async function NewPostPage() {
   return (
     <>
       <TopBar title="New Post" />
-      <PostForm categories={categories} tags={tags} />
+      <NewPostShell categories={categories} tags={tags} />
     </>
   );
 }
