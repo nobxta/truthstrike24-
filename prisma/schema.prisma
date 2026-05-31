@@ -86,6 +86,8 @@ model AgentSettings {
   wordLimit       Int      @default(600)
   // Optional: extra writing instructions
   writingStyle    String   @default("Professional journalism with specific names, dates, statistics, and quotes from real people. No filler. No 'experts say' without naming them.")
+  // Posting interval (minutes between articles)
+  postIntervalMinutes Int @default(60)
   // Auto-reply settings
   autoReplyEnabled Boolean @default(true)
   autoReplyMinutes Int     @default(60)

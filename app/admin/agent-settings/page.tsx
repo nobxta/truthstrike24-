@@ -40,6 +40,7 @@ interface Settings {
   useWebSearch: boolean;
   wordLimit: number;
   writingStyle: string;
+  postIntervalMinutes: number;
   autoReplyEnabled: boolean;
   autoReplyMinutes: number;
 }
@@ -84,6 +85,7 @@ const DEFAULT: Settings = {
   useWebSearch: false,
   wordLimit: 600,
   writingStyle: "Professional journalism with specific names, dates, statistics, and quotes from real people. No filler.",
+  postIntervalMinutes: 60,
   autoReplyEnabled: true,
   autoReplyMinutes: 60,
 };
@@ -376,6 +378,33 @@ export default function AgentSettingsPage() {
                     <span>600 (standard)</span>
                     <span>1000+ (long-read)</span>
                   </div>
+                </div>
+
+                {/* Posting interval */}
+                <div>
+                  <label className="block text-[13px] font-semibold text-gray-800 mb-1.5">
+                    Posting Interval <span className="text-gray-400 font-normal">— how often a new article is generated</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input type="range" min={5} max={360} step={5} value={s.postIntervalMinutes}
+                      onChange={(e) => up("postIntervalMinutes", parseInt(e.target.value, 10))}
+                      className="flex-1 accent-orange-500" />
+                    <span className="w-20 text-center text-sm font-bold text-gray-900 bg-gray-100 rounded px-2 py-1">
+                      {s.postIntervalMinutes < 60
+                        ? `${s.postIntervalMinutes}min`
+                        : s.postIntervalMinutes === 60
+                        ? "1hr"
+                        : `${(s.postIntervalMinutes / 60).toFixed(1)}hr`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                    <span>5 min (rapid)</span>
+                    <span>1 hour (standard)</span>
+                    <span>6 hours (slow)</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">
+                    💡 <strong>VPS worker reads this from the database on every cycle.</strong> Change it here → applies immediately on the next interval (no restart needed). Toggle &quot;Active&quot; OFF above to pause posting completely.
+                  </p>
                 </div>
 
                 {/* Web search toggle */}

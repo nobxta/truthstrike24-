@@ -350,31 +350,63 @@ Today: ${today}`;
 
 /* ─── Entry point ─── */
 
-// Watch is the DEFAULT on long-running servers (Pterodactyl, systemd, etc).
-// Pass --once or set RUN_ONCE=1 to disable and exit after one run.
+// Run-once mode: pass --once or set RUN_ONCE=1
 const runOnce =
   process.argv.includes("--once") || process.env.RUN_ONCE === "1";
-const watch = !runOnce;
 
-// Interval (minutes between runs). CLI flag or INTERVAL_MIN env var.
-const intervalArg = process.argv
-  .find((a) => a.startsWith("--every="))
-  ?.split("=")[1];
-const intervalMin = parseInt(
-  intervalArg || process.env.INTERVAL_MIN || "60",
-  10
-);
+/**
+ * Fetches the next-run interval from the DB.
+ * Returns minutes. Default 60 if not set.
+ */
+async function getIntervalMinutes() {
+  try {
+    const s = await prisma.agentSettings.findUnique({
+      where: { id: "singleton" },
+    });
+    return Math.max(1, s?.postIntervalMinutes || 60);
+  } catch {
+    return 60;
+  }
+}
 
-async function main() {
+/**
+ * Checks if agent is enabled in DB.
+ * Worker pauses if disabled — no posts created.
+ */
+async function isEnabled() {
+  try {
+    const s = await prisma.agentSettings.findUnique({
+      where: { id: "singleton" },
+    });
+    return !!s?.enabled;
+  } catch {
+    return false;
+  }
+}
+
+async function loop() {
+  // Run once immediately on startup (if enabled)
   await runAgent();
-  if (watch) {
-    console.log(`\n⏰ Next run in ${intervalMin} minutes... (set RUN_ONCE=1 to disable)`);
-    // Keep alive forever — setInterval holds the event loop open
-    setInterval(() => {
-      runAgent().catch((e) => console.error("[run error]", e));
-    }, intervalMin * 60 * 1000);
-  } else {
-    await prisma.$disconnect();
+
+  while (true) {
+    const interval = await getIntervalMinutes();
+    const enabled = await isEnabled();
+
+    if (enabled) {
+      console.log(`\n⏰ Next run in ${interval} minutes (configurable from frontend)`);
+    } else {
+      console.log(`\n⏸  Agent paused (toggle Off in frontend). Re-checking in ${interval} minutes.`);
+    }
+
+    // Sleep `interval` minutes, but check every minute so toggle changes are responsive
+    const tickMs = 60 * 1000;
+    const totalTicks = interval;
+    for (let i = 0; i < totalTicks; i++) {
+      await new Promise((r) => setTimeout(r, tickMs));
+    }
+
+    // After sleep, run again (runAgent checks enabled internally)
+    await runAgent();
   }
 }
 
@@ -389,6 +421,16 @@ process.on("SIGINT", async () => {
   await prisma.$disconnect();
   process.exit(0);
 });
+
+async function main() {
+  if (runOnce) {
+    await runAgent();
+    await prisma.$disconnect();
+    process.exit(0);
+  } else {
+    await loop();
+  }
+}
 
 main().catch(async (e) => {
   console.error("[fatal]", e);

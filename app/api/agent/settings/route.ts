@@ -49,6 +49,7 @@ export async function PUT(req: NextRequest) {
       useWebSearch?: boolean;
       wordLimit?: number;
       writingStyle?: string;
+      postIntervalMinutes?: number;
       autoReplyEnabled?: boolean;
       autoReplyMinutes?: number;
     };
@@ -67,6 +68,7 @@ export async function PUT(req: NextRequest) {
         ...(body.useWebSearch !== undefined && { useWebSearch: body.useWebSearch }),
         ...(body.wordLimit !== undefined && { wordLimit: body.wordLimit }),
         ...(body.writingStyle !== undefined && { writingStyle: body.writingStyle }),
+        ...(body.postIntervalMinutes !== undefined && { postIntervalMinutes: body.postIntervalMinutes }),
         ...(body.autoReplyEnabled !== undefined && { autoReplyEnabled: body.autoReplyEnabled }),
         ...(body.autoReplyMinutes !== undefined && { autoReplyMinutes: body.autoReplyMinutes }),
       },
@@ -83,6 +85,7 @@ export async function PUT(req: NextRequest) {
         useWebSearch: body.useWebSearch,
         wordLimit: body.wordLimit,
         writingStyle: body.writingStyle,
+        postIntervalMinutes: body.postIntervalMinutes,
         autoReplyEnabled: body.autoReplyEnabled,
         autoReplyMinutes: body.autoReplyMinutes,
       },
