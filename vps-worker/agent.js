@@ -350,20 +350,48 @@ Today: ${today}`;
 
 /* ─── Entry point ─── */
 
-const watch = process.argv.includes("--watch");
+// Watch is the DEFAULT on long-running servers (Pterodactyl, systemd, etc).
+// Pass --once or set RUN_ONCE=1 to disable and exit after one run.
+const runOnce =
+  process.argv.includes("--once") || process.env.RUN_ONCE === "1";
+const watch = !runOnce;
+
+// Interval (minutes between runs). CLI flag or INTERVAL_MIN env var.
+const intervalArg = process.argv
+  .find((a) => a.startsWith("--every="))
+  ?.split("=")[1];
 const intervalMin = parseInt(
-  process.argv.find((a) => a.startsWith("--every="))?.split("=")[1] || "60",
+  intervalArg || process.env.INTERVAL_MIN || "60",
   10
 );
 
 async function main() {
   await runAgent();
   if (watch) {
-    console.log(`\n⏰ Next run in ${intervalMin} minutes...`);
-    setInterval(() => runAgent().catch(console.error), intervalMin * 60 * 1000);
+    console.log(`\n⏰ Next run in ${intervalMin} minutes... (set RUN_ONCE=1 to disable)`);
+    // Keep alive forever — setInterval holds the event loop open
+    setInterval(() => {
+      runAgent().catch((e) => console.error("[run error]", e));
+    }, intervalMin * 60 * 1000);
   } else {
     await prisma.$disconnect();
   }
 }
 
-main();
+// Graceful shutdown so Pterodactyl Stop button works cleanly
+process.on("SIGTERM", async () => {
+  console.log("\n👋 SIGTERM received, shutting down gracefully...");
+  await prisma.$disconnect();
+  process.exit(0);
+});
+process.on("SIGINT", async () => {
+  console.log("\n👋 SIGINT received, shutting down gracefully...");
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+main().catch(async (e) => {
+  console.error("[fatal]", e);
+  await prisma.$disconnect();
+  process.exit(1);
+});
