@@ -1,5 +1,10 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Mail, Globe, Newspaper, ChevronRight } from "lucide-react";
+
+const LOGO_URL =
+  process.env.NEXT_PUBLIC_LOGO_URL ||
+  "https://res.cloudinary.com/dumhqc5k6/image/upload/v1780221602/ChatGPT_Image_May_31_2026_03_29_40_PM_sgjcd2.png";
 
 export default function Footer() {
   const year = new Date().getFullYear();
@@ -13,16 +18,14 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-10 md:gap-8">
           {/* Brand */}
           <div className="md:col-span-5">
-            <Link href="/" className="inline-flex items-center shrink-0">
-              <span className="text-[22px] font-black tracking-tight text-white uppercase">
-                TRUTH
-              </span>
-              <span className="text-[22px] font-black tracking-tight text-accent uppercase">
-                STRIKE
-              </span>
-              <span className="text-[22px] font-light tracking-tight text-white/30 ml-0.5">
-                24
-              </span>
+            <Link href="/" className="inline-flex items-center shrink-0" aria-label="TruthStrike24 — Home">
+              <Image
+                src={LOGO_URL}
+                alt="TruthStrike24"
+                width={200}
+                height={48}
+                className="h-11 w-auto object-contain"
+              />
             </Link>
             <p className="text-sm leading-relaxed mt-4 max-w-sm text-gray-500">
               Your trusted source for breaking news and in-depth journalism.

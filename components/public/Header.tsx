@@ -1,9 +1,14 @@
 import Link from "next/link";
+import Image from "next/image";
 import { prisma } from "@/lib/db";
 import NavLinks from "./NavLinks";
 import LanguageSelector from "./LanguageSelector";
 import SearchBar from "./SearchBar";
 import ThemeToggle from "./ThemeToggle";
+
+const LOGO_URL =
+  process.env.NEXT_PUBLIC_LOGO_URL ||
+  "https://res.cloudinary.com/dumhqc5k6/image/upload/v1780221602/ChatGPT_Image_May_31_2026_03_29_40_PM_sgjcd2.png";
 
 export default async function Header() {
   const categories = await prisma.category.findMany({
@@ -18,20 +23,20 @@ export default async function Header() {
 
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-14">
-          {/* Bold minimalist logo */}
+          {/* Brand logo (PNG) */}
           <Link
             href="/"
             className="flex items-center shrink-0 group"
+            aria-label="TruthStrike24 — Home"
           >
-            <span className="text-[20px] font-black tracking-tight text-[#111111] dark:text-white uppercase">
-              TRUTH
-            </span>
-            <span className="text-[20px] font-black tracking-tight text-accent uppercase">
-              STRIKE
-            </span>
-            <span className="text-[20px] font-light tracking-tight text-gray-300 dark:text-white/30 ml-0.5">
-              24
-            </span>
+            <Image
+              src={LOGO_URL}
+              alt="TruthStrike24"
+              width={160}
+              height={40}
+              priority
+              className="h-9 sm:h-10 w-auto object-contain transition-opacity duration-200 group-hover:opacity-90"
+            />
           </Link>
 
           {/* Navigation */}
