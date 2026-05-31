@@ -1,0 +1,21 @@
+{
+  "name": "truthstrike24-vps-worker",
+  "version": "1.0.0",
+  "description": "VPS worker for AI agent — generates news articles without Vercel timeout limits",
+  "main": "agent.js",
+  "scripts": {
+    "run": "node agent.js",
+    "watch": "node agent.js --watch",
+    "watch-30": "node agent.js --watch --every=30",
+    "watch-60": "node agent.js --watch --every=60",
+    "watch-120": "node agent.js --watch --every=120",
+    "prisma-gen": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

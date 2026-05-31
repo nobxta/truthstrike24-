@@ -1,0 +1,361 @@
+#!/usr/bin/env node
+/**
+ * TruthStrike24 — VPS Worker
+ * Runs on a VPS (Oracle Cloud Free / Hetzner / DigitalOcean).
+ * Reads agent settings + writes posts to the SAME Neon DB as Vercel.
+ *
+ * No timeouts — uses big models with web_search + long articles.
+ *
+ * Usage:
+ *   node agent.js           # run once
+ *   node agent.js --watch   # run every 60 min in a loop (no cron needed)
+ */
+
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+
+/* ─── Config from env vars ─── */
+
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const GROQ_KEY = process.env.GROQ_API_KEY;
+const WAVESPEED_KEY = process.env.WAVESPEED_API_KEY;
+const WATERMARK_URL = process.env.NEXT_PUBLIC_WATERMARK_URL || "";
+
+if (!ANTHROPIC_KEY && !OPENAI_KEY && !GROQ_KEY) {
+  console.error("❌ At least one AI provider API key required");
+  process.exit(1);
+}
+if (!WAVESPEED_KEY) {
+  console.error("❌ WAVESPEED_API_KEY required");
+  process.exit(1);
+}
+
+/* ─── Slugify ─── */
+function slugify(str) {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 80);
+}
+
+/* ─── AI calls (full quality, no timeout) ─── */
+
+async function callClaude(model, systemPrompt, userMessage, useWebSearch) {
+  const body = {
+    model,
+    max_tokens: 4096,
+    system: systemPrompt,
+    messages: [{ role: "user", content: userMessage }],
+  };
+  if (useWebSearch) {
+    body.tools = [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }];
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Claude ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return {
+    text: data.content.filter((b) => b.type === "text").map((b) => b.text).join("\n"),
+    inputTokens: data.usage?.input_tokens ?? 0,
+    outputTokens: data.usage?.output_tokens ?? 0,
+  };
+}
+
+async function callOpenAI(model, systemPrompt, userMessage) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
+    body: JSON.stringify({
+      model,
+      max_tokens: 4096,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return {
+    text: data.choices[0].message.content,
+    inputTokens: data.usage?.prompt_tokens ?? 0,
+    outputTokens: data.usage?.completion_tokens ?? 0,
+  };
+}
+
+async function callGroq(model, systemPrompt, userMessage) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_KEY}` },
+    body: JSON.stringify({
+      model,
+      max_tokens: 4096,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return {
+    text: data.choices[0].message.content,
+    inputTokens: data.usage?.prompt_tokens ?? 0,
+    outputTokens: data.usage?.completion_tokens ?? 0,
+  };
+}
+
+/* ─── WaveSpeed image gen ─── */
+
+async function generateImage(model, prompt) {
+  const url = `https://api.wavespeed.ai/api/v3/${model}`;
+  const body = {
+    prompt: `${prompt}. High quality, professional news photography, sharp details. No watermarks or text in image.`,
+    size: "1344*768",
+    aspect_ratio: "16:9",
+    num_inference_steps: model.includes("schnell") ? 4 : 28,
+    guidance_scale: 3.5,
+    seed: Math.floor(Math.random() * 2147483647),
+  };
+
+  const submit = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${WAVESPEED_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!submit.ok) throw new Error(`WaveSpeed submit ${submit.status}: ${await submit.text()}`);
+
+  const sj = await submit.json();
+  const sd = sj.data || sj;
+  if (sd.outputs?.length) return sd.outputs[0];
+
+  // Poll
+  const id = sd.id || sj.id;
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const r = await fetch(`https://api.wavespeed.ai/api/v3/predictions/${id}/result`, {
+      headers: { Authorization: `Bearer ${WAVESPEED_KEY}` },
+    });
+    if (!r.ok) continue;
+    const j = await r.json();
+    const d = j.data || j;
+    if (d.status === "completed" || d.status === "succeeded") {
+      if (d.outputs?.length) return d.outputs[0];
+      throw new Error("WaveSpeed: no outputs");
+    }
+    if (d.status === "failed") throw new Error(`WaveSpeed failed: ${d.error || "unknown"}`);
+  }
+  throw new Error("WaveSpeed timeout after 2min");
+}
+
+/* ─── Parse AI JSON output ─── */
+
+function extractJson(raw) {
+  let s = raw.trim();
+  if (s.startsWith("```")) s = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first !== -1 && last !== -1) s = s.slice(first, last + 1);
+  return JSON.parse(s);
+}
+
+/* ─── Main agent run ─── */
+
+async function runAgent() {
+  const startTime = Date.now();
+  console.log(`\n${"=".repeat(60)}`);
+  console.log(`[${new Date().toISOString()}] Starting agent run...`);
+
+  try {
+    const settings = await prisma.agentSettings.findUnique({ where: { id: "singleton" } });
+    if (!settings) throw new Error("AgentSettings not found in DB");
+    if (!settings.enabled) {
+      console.log("⏸  Agent disabled in settings. Skipping.");
+      return;
+    }
+
+    const provider = settings.postProvider || "anthropic";
+    const model = settings.model;
+    const imageModel = settings.imageModel || "wavespeed-ai/flux-dev";
+    const useWebSearch = !!settings.useWebSearch;
+    const wordLimit = settings.wordLimit || 800;
+    const writingStyle = settings.writingStyle || "Professional journalism with specific names, dates, statistics, and quotes from real people.";
+
+    const topics = settings.topicFocus.split(/[,\n]/).map((t) => t.trim()).filter(Boolean);
+    if (!topics.length) throw new Error("No topics in settings");
+    const topic = topics[Math.floor(Math.random() * topics.length)];
+
+    console.log(`📝 Topic: "${topic}"`);
+    console.log(`🤖 Model: ${provider}/${model}`);
+    console.log(`🔎 Web search: ${useWebSearch ? "ON" : "off"}`);
+    console.log(`📏 Word limit: ${wordLimit}`);
+
+    /* Build prompt (same as Vercel route) */
+    const today = new Date().toISOString().split("T")[0];
+    const minWords = Math.max(200, wordLimit - 100);
+    const maxWords = wordLimit + 100;
+
+    const systemPrompt = `You are a top-tier news journalist writing for TruthStrike24.
+TASK: ${useWebSearch && provider === "anthropic" ? "Use web_search to find a real recent story" : "Write a well-researched article from knowledge"}.
+
+LENGTH: ${minWords}-${maxWords} words (target ${wordLimit}).
+QUALITY:
+- Include REAL named people, organizations, specific dates, exact statistics, dollar amounts
+- Include DIRECT QUOTES from named sources (with quotation marks)
+- NO filler: never write "experts say" without naming them
+- NO repetition
+- ${writingStyle}
+
+OUTPUT — STRICT JSON ONLY:
+{
+  "title": "Headline under 90 chars",
+  "slug": "url-friendly-slug",
+  "summary": "2 sentences with specific facts (140-180 chars)",
+  "content": "<p>HTML body. ${minWords}-${maxWords} words. Real names, exact numbers, direct quotes.</p>",
+  "seoTitle": "SEO title under 60 chars",
+  "metaDescription": "Under 155 chars",
+  "imagePrompt": "Photojournalism scene description. NO TEXT/LOGOS/WATERMARKS in image.",
+  "topic": "${topic}",
+  "source": "${useWebSearch ? "Source URL" : "Written from knowledge"}"
+}
+
+Today: ${today}`;
+
+    const userPrompt = `Write a ${wordLimit}-word news article about: ${topic}\nReturn JSON only.`;
+
+    /* Call AI */
+    console.log(`🧠 Calling ${provider}...`);
+    const aiStart = Date.now();
+    let aiResult;
+    if (provider === "anthropic") {
+      aiResult = await callClaude(model, systemPrompt, userPrompt, useWebSearch);
+    } else if (provider === "openai") {
+      aiResult = await callOpenAI(model, systemPrompt, userPrompt);
+    } else {
+      aiResult = await callGroq(model, systemPrompt, userPrompt);
+    }
+    console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
+
+    /* Parse */
+    let parsed;
+    try {
+      parsed = extractJson(aiResult.text);
+    } catch (e) {
+      throw new Error(`JSON parse failed: ${e.message}\nRaw: ${aiResult.text.slice(0, 300)}`);
+    }
+    if (!parsed.title || !parsed.content || !parsed.imagePrompt) {
+      throw new Error("AI response missing required fields");
+    }
+
+    /* Generate image */
+    console.log(`🎨 Generating image (${imageModel})...`);
+    const imgStart = Date.now();
+    const featuredImage = await generateImage(imageModel, parsed.imagePrompt);
+    console.log(`   ✓ Image done in ${((Date.now() - imgStart) / 1000).toFixed(1)}s`);
+
+    /* Find author + category */
+    const author = await prisma.user.findFirst();
+    if (!author) throw new Error("No user in DB");
+    let category = await prisma.category.findFirst({ where: { slug: "news" } });
+    if (!category) category = await prisma.category.findFirst();
+    if (!category) {
+      category = await prisma.category.create({
+        data: { name: "News", slug: "news", color: "#3b82f6", emoji: "📰" },
+      });
+    }
+
+    /* Unique slug */
+    let baseSlug = parsed.slug ? slugify(parsed.slug) : slugify(parsed.title);
+    let uniqueSlug = baseSlug;
+    let counter = 1;
+    while (await prisma.post.findUnique({ where: { slug: uniqueSlug } })) {
+      uniqueSlug = `${baseSlug}-${++counter}`;
+    }
+
+    /* Save */
+    const post = await prisma.post.create({
+      data: {
+        title: parsed.title,
+        slug: uniqueSlug,
+        summary: parsed.summary || parsed.title,
+        content: parsed.content,
+        featuredImage,
+        seoTitle: parsed.seoTitle || parsed.title,
+        metaDescription: parsed.metaDescription || parsed.summary || "",
+        status: "published",
+        publishedAt: new Date(),
+        authorId: author.id,
+        categoryId: category.id,
+        isAgentPost: true,
+        imagePrompt: parsed.imagePrompt,
+        imageStatus: "done",
+      },
+    });
+
+    await prisma.agentLog.create({
+      data: { model, status: "success", title: post.title },
+    });
+
+    /* Log usage */
+    if (aiResult.inputTokens > 0) {
+      await prisma.aIUsage.create({
+        data: {
+          provider,
+          model,
+          purpose: "post",
+          inputTokens: aiResult.inputTokens,
+          outputTokens: aiResult.outputTokens,
+          totalTokens: aiResult.inputTokens + aiResult.outputTokens,
+          costUsd: 0, // rough — not tracked precisely here
+          durationMs: Date.now() - startTime,
+          success: true,
+        },
+      });
+    }
+
+    const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`\n✅ SUCCESS in ${totalSec}s`);
+    console.log(`   Title: ${post.title}`);
+    console.log(`   URL:   /news/${post.slug}`);
+    console.log(`   Image: ${featuredImage}`);
+    if (parsed.source) console.log(`   Source: ${parsed.source}`);
+  } catch (error) {
+    console.error(`\n❌ FAILED: ${error.message}`);
+    try {
+      await prisma.agentLog.create({
+        data: { model: "unknown", status: "error", error: error.message },
+      });
+    } catch {}
+  }
+}
+
+/* ─── Entry point ─── */
+
+const watch = process.argv.includes("--watch");
+const intervalMin = parseInt(
+  process.argv.find((a) => a.startsWith("--every="))?.split("=")[1] || "60",
+  10
+);
+
+async function main() {
+  await runAgent();
+  if (watch) {
+    console.log(`\n⏰ Next run in ${intervalMin} minutes...`);
+    setInterval(() => runAgent().catch(console.error), intervalMin * 60 * 1000);
+  } else {
+    await prisma.$disconnect();
+  }
+}
+
+main();
