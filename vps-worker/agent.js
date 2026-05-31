@@ -454,9 +454,14 @@ async function processOneGenerationJob() {
   if (locked.count === 0) return true; // someone else grabbed it
 
   const jobStart = Date.now();
-  console.log(`\n[${new Date().toISOString()}] 📥 Picked up job ${job.id}`);
+  console.log(`\n[${new Date().toISOString()}] 📥 Picked up job ${job.id} [${job.jobType || "article"}]`);
   console.log(`   Context: "${job.context.slice(0, 80)}..."`);
   console.log(`   Model: ${job.provider}/${job.model}, words: ${job.wordLimit}, image: ${job.generateImage}`);
+
+  // Branch to custom-page processor if this is a custom-page job
+  if (job.jobType === "custom_page") {
+    return processCustomPageJob(job, jobStart);
+  }
 
   try {
     const minWords = Math.max(200, job.wordLimit - 100);
@@ -568,6 +573,199 @@ Today: ${today}`;
   }
 
   return true;
+}
+
+/* ─── Custom-page job processor ─── */
+
+// Minimal map of theme key -> category for prompt context.
+// Keep in sync with lib/designs.ts. If a key is missing, defaults to "investigation".
+const THEME_CATEGORY = {
+  "scam-alert": "investigation",
+  "fraud-radar": "investigation",
+  "cyber-forensic": "investigation",
+  "dark-intel": "investigation",
+  "exposure-white": "investigation",
+  "luxe-gold": "promotional",
+  "fresh-gradient": "promotional",
+  "neon-promo": "promotional",
+  "clean-minimal": "promotional",
+  "bold-impact": "promotional",
+  "tech-review": "review",
+  "verdict-green": "review",
+  "deep-analysis": "review",
+  "trust-score": "review",
+  "compare-split": "review",
+  "press-navy": "editorial",
+  "case-study": "editorial",
+  "annual-report": "editorial",
+  "creative-studio": "editorial",
+  "data-driven": "editorial",
+};
+
+function layoutGuidanceFor(category) {
+  switch (category) {
+    case "investigation":
+      return "evidence, stats, verdict, timeline, quote, banner, highlight, text";
+    case "promotional":
+      return "banner, highlight, full-image, stats, text, grid";
+    case "review":
+      return "text, image-left, image-right, stats, verdict, quote";
+    case "editorial":
+      return "text, quote, timeline, grid, image-left, image-right";
+    default:
+      return "text, highlight, quote, stats";
+  }
+}
+
+async function processCustomPageJob(job, jobStart) {
+  try {
+    const category = THEME_CATEGORY[job.themeKey] || "investigation";
+    const layoutHints = layoutGuidanceFor(category);
+
+    const systemPrompt = `You are a senior content designer creating a polished single-page landing/report site for TruthStrike24.
+
+GOAL: Produce STRICT JSON for a single page. The page uses a "${job.themeKey || "scam-alert"}" theme (category: ${category}).
+
+LAYOUT TYPES AVAILABLE (use the right ones for this category — favor: ${layoutHints}):
+- "text": standard paragraph block
+- "image-left" / "image-right": side-by-side image + text (image optional, can be left as "")
+- "full-image": large showcase image with caption
+- "highlight": glassy callout card with accent border, good for key claims
+- "evidence": evidence list — use <hr> separators between items, each item with <strong>Title</strong> then description
+- "stats": numbers row — use <p><strong>$2.5M</strong> Amount Lost</p><p><strong>1,200+</strong> Victims</p> format (pairs of number + label)
+- "quote": large pull-quote (body is the quote text; title is attribution like "Jane Doe — CEO")
+- "timeline": dated event row (title is date/event, body describes what happened)
+- "verdict": final ruling card — title like "VERDICT: SCAM" or "VERDICT: LEGIT" triggers red/green styling
+- "grid": multi-step or 2-column — use <hr> to separate items, optionally <strong>Step Title</strong> per item
+- "banner": bold full-width CTA banner in accent color
+
+SECTION TITLE CONVENTION: Use "LABEL|Heading" to render a small uppercase label above the heading.
+  Example: "BACKGROUND|What Is BlockLender.io?" → small "BACKGROUND" pill + "What Is BlockLender.io?" h3.
+  If no pipe, the whole string is the heading.
+
+OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble):
+{
+  "title": "Internal/admin title — short",
+  "slug": "url-friendly-slug",
+  "headline": "Big hero headline (typed out on load — keep it punchy, < 90 chars)",
+  "subheadline": "Pill badge text above headline (e.g. INVESTIGATION REPORT, EXCLUSIVE REVIEW)",
+  "ctaText": "Optional CTA button label (or empty string)",
+  "ctaUrl": "Optional CTA url (or empty string)",
+  "logoUrl": "",
+  "metaTitle": "SEO title under 60 chars",
+  "metaDesc": "Meta description under 155 chars",
+  "heroImagePrompt": "Photojournalism scene for hero — vivid, specific. NO TEXT/LOGOS/WATERMARKS in image.",
+  "content": "<p>Optional short intro paragraph shown between hero and sections — can be empty string.</p>",
+  "sections": [
+    {
+      "title": "LABEL|Section heading",
+      "body": "<p>HTML body for this section</p>",
+      "image": "",
+      "layout": "one of: text | image-left | image-right | full-image | highlight | evidence | stats | quote | timeline | verdict | grid | banner"
+    }
+  ]
+}
+
+RULES:
+- Produce 6–10 sections with a MIX of layouts appropriate to the "${category}" category.
+- Use the pipe-label convention on most section titles.
+- Body must be HTML (use <p>, <strong>, <em>, <ul>/<li>, <a href>, <hr> as needed).
+- Sections marked "evidence", "grid" should contain multiple items separated by <hr>.
+- Section "stats" body should be pairs of <p><strong>NUMBER</strong> Label</p>.
+- Section "quote" body is plain text of the quote (will be italicized); title is the attribution.
+- Leave section "image" as empty string unless you want a specific image — we only generate the HERO image.
+- Output JSON ONLY. No commentary.`;
+
+    const userPrompt = `Build a complete page about this brief:\n\n${job.context}\n\nReturn JSON only.`;
+
+    console.log(`🧠 Calling ${job.provider} (custom_page)...`);
+    const aiStart = Date.now();
+    let aiResult;
+    if (job.provider === "anthropic") {
+      aiResult = await callClaude(job.model, systemPrompt, userPrompt, job.useWebSearch);
+    } else if (job.provider === "openai") {
+      aiResult = await callOpenAI(job.model, systemPrompt, userPrompt);
+    } else {
+      aiResult = await callGroq(job.model, systemPrompt, userPrompt);
+    }
+    console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
+
+    let parsed;
+    try {
+      parsed = extractJson(aiResult.text);
+    } catch (e) {
+      throw new Error(`JSON parse failed: ${e.message}`);
+    }
+    if (!parsed.title || !parsed.headline) {
+      throw new Error("AI response missing title or headline");
+    }
+    if (!Array.isArray(parsed.sections)) parsed.sections = [];
+
+    // Normalize sections
+    parsed.sections = parsed.sections.map((s) => ({
+      title: String(s.title || ""),
+      body: String(s.body || ""),
+      image: String(s.image || ""),
+      layout: String(s.layout || "text"),
+    }));
+
+    let imageUrl = "";
+    if (job.generateImage && parsed.heroImagePrompt) {
+      console.log(`🎨 Generating hero image (${job.imageModel})...`);
+      const imgStart = Date.now();
+      try {
+        imageUrl = await generateImage(job.imageModel, parsed.heroImagePrompt);
+        console.log(`   ✓ Hero image done in ${((Date.now() - imgStart) / 1000).toFixed(1)}s`);
+        parsed.heroImage = imageUrl;
+      } catch (imgErr) {
+        console.error(`   ⚠ Hero image gen failed: ${imgErr.message}`);
+      }
+    }
+
+    const totalMs = Date.now() - jobStart;
+
+    await prisma.generationJob.update({
+      where: { id: job.id },
+      data: {
+        status: "done",
+        resultJson: JSON.stringify(parsed),
+        imageUrl: imageUrl || null,
+        inputTokens: aiResult.inputTokens,
+        outputTokens: aiResult.outputTokens,
+        durationMs: totalMs,
+        completedAt: new Date(),
+      },
+    });
+
+    if (aiResult.inputTokens > 0) {
+      await prisma.aIUsage.create({
+        data: {
+          provider: job.provider,
+          model: job.model,
+          purpose: "custom_page",
+          inputTokens: aiResult.inputTokens,
+          outputTokens: aiResult.outputTokens,
+          totalTokens: aiResult.inputTokens + aiResult.outputTokens,
+          costUsd: 0,
+          durationMs: totalMs,
+          success: true,
+        },
+      });
+    }
+
+    console.log(`✅ Custom-page job ${job.id} complete in ${(totalMs / 1000).toFixed(1)}s · "${parsed.title}"`);
+  } catch (error) {
+    console.error(`❌ Custom-page job ${job.id} failed: ${error.message}`);
+    await prisma.generationJob.update({
+      where: { id: job.id },
+      data: {
+        status: "failed",
+        errorMsg: error.message.slice(0, 1000),
+        completedAt: new Date(),
+        durationMs: Date.now() - jobStart,
+      },
+    });
+  }
 }
 
 async function loop() {

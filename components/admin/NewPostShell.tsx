@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Edit3, Sparkles } from "lucide-react";
+import { Edit3, Sparkles, Layout } from "lucide-react";
 import PostForm from "./PostForm";
 import AiPostForm from "./AiPostForm";
+import AiCustomPageForm from "./AiCustomPageForm";
 
 interface Category {
   id: string;
@@ -22,7 +23,7 @@ interface Props {
   tags: Tag[];
 }
 
-type Mode = "manual" | "ai";
+type Mode = "manual" | "ai" | "ai-page";
 
 export default function NewPostShell({ categories, tags }: Props) {
   const [mode, setMode] = useState<Mode>("manual");
@@ -54,16 +55,26 @@ export default function NewPostShell({ categories, tags }: Props) {
             }`}
           >
             <Sparkles size={14} />
-            AI Assistant
+            AI Article
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("ai-page")}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              mode === "ai-page"
+                ? "bg-white text-navy shadow-sm"
+                : "text-gray-600 hover:text-gray-800"
+            }`}
+          >
+            <Layout size={14} />
+            AI Custom Page
           </button>
         </div>
       </div>
 
-      {mode === "manual" ? (
-        <PostForm categories={categories} tags={tags} />
-      ) : (
-        <AiPostForm categories={categories} tags={tags} />
-      )}
+      {mode === "manual" && <PostForm categories={categories} tags={tags} />}
+      {mode === "ai" && <AiPostForm categories={categories} tags={tags} />}
+      {mode === "ai-page" && <AiCustomPageForm />}
     </div>
   );
 }
