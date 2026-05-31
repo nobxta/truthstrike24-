@@ -55,6 +55,8 @@ model Post {
   tags            PostTag[]
   isAgentPost     Boolean   @default(false)
   isBreaking      Boolean   @default(false)
+  imagePrompt     String?   @db.Text
+  imageStatus     String    @default("none") // "none" | "pending" | "done" | "failed"
 }
 
 model PostTag {
@@ -76,6 +78,10 @@ model AgentSettings {
   // AI provider for chat enhancement: "anthropic" | "openai" | "groq"
   chatProvider    String   @default("groq")
   chatModel       String   @default("llama-3.3-70b-versatile")
+  // Image generation
+  imageModel      String   @default("wavespeed-ai/flux-schnell")
+  watermarkUrl    String   @default("")
+  useWebSearch    Boolean  @default(true)
   // Auto-reply settings
   autoReplyEnabled Boolean @default(true)
   autoReplyMinutes Int     @default(60)

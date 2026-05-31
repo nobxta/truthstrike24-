@@ -44,6 +44,9 @@ export async function PUT(req: NextRequest) {
       postProvider?: string;
       chatProvider?: string;
       chatModel?: string;
+      imageModel?: string;
+      watermarkUrl?: string;
+      useWebSearch?: boolean;
       autoReplyEnabled?: boolean;
       autoReplyMinutes?: number;
     };
@@ -54,19 +57,14 @@ export async function PUT(req: NextRequest) {
         ...(body.model !== undefined && { model: body.model }),
         ...(body.enabled !== undefined && { enabled: body.enabled }),
         ...(body.topicFocus !== undefined && { topicFocus: body.topicFocus }),
-        ...(body.postProvider !== undefined && {
-          postProvider: body.postProvider,
-        }),
-        ...(body.chatProvider !== undefined && {
-          chatProvider: body.chatProvider,
-        }),
+        ...(body.postProvider !== undefined && { postProvider: body.postProvider }),
+        ...(body.chatProvider !== undefined && { chatProvider: body.chatProvider }),
         ...(body.chatModel !== undefined && { chatModel: body.chatModel }),
-        ...(body.autoReplyEnabled !== undefined && {
-          autoReplyEnabled: body.autoReplyEnabled,
-        }),
-        ...(body.autoReplyMinutes !== undefined && {
-          autoReplyMinutes: body.autoReplyMinutes,
-        }),
+        ...(body.imageModel !== undefined && { imageModel: body.imageModel }),
+        ...(body.watermarkUrl !== undefined && { watermarkUrl: body.watermarkUrl }),
+        ...(body.useWebSearch !== undefined && { useWebSearch: body.useWebSearch }),
+        ...(body.autoReplyEnabled !== undefined && { autoReplyEnabled: body.autoReplyEnabled }),
+        ...(body.autoReplyMinutes !== undefined && { autoReplyMinutes: body.autoReplyMinutes }),
       },
       create: {
         id: "singleton",
@@ -76,6 +74,9 @@ export async function PUT(req: NextRequest) {
         postProvider: body.postProvider,
         chatProvider: body.chatProvider,
         chatModel: body.chatModel,
+        imageModel: body.imageModel,
+        watermarkUrl: body.watermarkUrl,
+        useWebSearch: body.useWebSearch,
         autoReplyEnabled: body.autoReplyEnabled,
         autoReplyMinutes: body.autoReplyMinutes,
       },

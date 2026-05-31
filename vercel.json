@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app/api/agent/post/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/agent/image/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/disputes/auto-reply/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}

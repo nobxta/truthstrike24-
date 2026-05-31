@@ -8,7 +8,7 @@ import ThemeToggle from "./ThemeToggle";
 
 const LOGO_URL =
   process.env.NEXT_PUBLIC_LOGO_URL ||
-  "https://res.cloudinary.com/dumhqc5k6/image/upload/v1780221602/ChatGPT_Image_May_31_2026_03_29_40_PM_sgjcd2.png";
+  "https://res.cloudinary.com/dumhqc5k6/image/upload/f_auto,q_auto/v1780221602/ChatGPT_Image_May_31_2026_03_29_40_PM_sgjcd2.png";
 
 export default async function Header() {
   const categories = await prisma.category.findMany({
@@ -22,7 +22,7 @@ export default async function Header() {
       <div className="h-[2px] bg-gradient-to-r from-accent via-red-500 to-accent" />
 
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
-        <div className="flex items-center justify-between h-14">
+        <div className="flex items-center justify-between h-16 sm:h-16">
           {/* Brand logo (PNG) */}
           <Link
             href="/"
@@ -32,10 +32,11 @@ export default async function Header() {
             <Image
               src={LOGO_URL}
               alt="TruthStrike24"
-              width={160}
-              height={40}
+              width={480}
+              height={120}
               priority
-              className="h-9 sm:h-10 w-auto object-contain transition-opacity duration-200 group-hover:opacity-90"
+              unoptimized
+              className="h-20 sm:h-24 w-auto object-contain -my-4 sm:-my-6 transition-opacity duration-200 group-hover:opacity-90"
             />
           </Link>
 
