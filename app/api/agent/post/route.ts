@@ -159,7 +159,11 @@ export async function POST(req: NextRequest) {
     const imageModel = settings.imageModel || "wavespeed-ai/flux-dev";
     const watermarkUrl =
       settings.watermarkUrl || process.env.NEXT_PUBLIC_WATERMARK_URL || "";
-    const useWebSearch = settings.useWebSearch !== false; // default true
+    const useWebSearch = settings.useWebSearch === true; // default false
+    const wordLimit = settings.wordLimit || 600;
+    const writingStyle =
+      settings.writingStyle ||
+      "Professional journalism with specific names, dates, statistics, and quotes from real people.";
 
     /* ── Pick a random topic ── */
     const topics = settings.topicFocus
@@ -177,36 +181,70 @@ export async function POST(req: NextRequest) {
     /* ── Step 1: Generate article + image prompt ── */
     const today = new Date().toISOString().split("T")[0];
 
-    const systemPrompt = `You are a professional news journalist for TruthStrike24. Your task: ${useWebSearch && provider === "anthropic" ? "use web_search to find ONE real, recent (last 7 days), SHORT news story" : "write a fresh, plausible short news article"} about the assigned topic, then write a concise news article about it.
+    const minWords = Math.max(200, wordLimit - 100);
+    const maxWords = wordLimit + 100;
 
-OUTPUT FORMAT — RETURN STRICT JSON ONLY (no markdown fences, no preamble):
+    const systemPrompt = `You are a top-tier news journalist writing for TruthStrike24, a professional news outlet.
+
+YOUR TASK: ${useWebSearch && provider === "anthropic" ? "Use web_search to find ONE real, recent news story (last 7 days) about the topic, then write a comprehensive news article." : "Write a well-researched, detailed news article about the topic using your knowledge."}
+
+═══════════════════════════════════════════════
+ARTICLE QUALITY RULES (CRITICAL — your output is published live):
+═══════════════════════════════════════════════
+
+1. LENGTH: ${minWords}-${maxWords} words (target: ${wordLimit}). Count carefully.
+2. SPECIFICITY:
+   - Include REAL named people (e.g., "Senator Maria Chen of California")
+   - Include EXACT statistics with sources (e.g., "a 23% increase, per Bloomberg")
+   - Include SPECIFIC dates, locations, dollar amounts, percentages
+   - Include DIRECT QUOTES from named sources (in quotation marks)
+3. NO FLUFF:
+   - NEVER write "experts say" without naming them
+   - NEVER write "a reputable organization" — name it
+   - NEVER write "many people" — give numbers
+   - NEVER write "the situation is complex" or other empty filler
+   - NEVER repeat the same point in different words
+4. STRUCTURE:
+   - Lead paragraph: Who, what, when, where, why (the 5 Ws)
+   - 2-3 body paragraphs: each adds new specific information
+   - Optional: H2 subheadings for longer articles
+   - Closing paragraph: what happens next or broader implications
+5. TONE: ${writingStyle}
+
+═══════════════════════════════════════════════
+OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble, no trailing text):
+═══════════════════════════════════════════════
 {
-  "title": "Punchy headline under 80 chars",
-  "slug": "url-friendly-slug-here",
-  "summary": "1-2 sentence summary under 180 chars",
-  "content": "<p>Article body in HTML. Use <p>, <h2>, <ul>, <strong> tags. SHORT — 250-400 words total, 3-4 paragraphs max. Concise, factual, engaging.</p>",
-  "seoTitle": "SEO title under 60 chars",
-  "metaDescription": "Meta description under 155 chars",
-  "imagePrompt": "Detailed visual description for a news photo about this story. Describe the SCENE, SUBJECTS, SETTING, LIGHTING, MOOD. Example: 'A modern courtroom interior with wooden bench, judge gavel on desk, soft afternoon light through tall windows, blurred figures in background, photojournalism style'. NO TEXT, NO LOGOS, NO WATERMARKS in image.",
+  "title": "Specific headline naming the key subject/event (under 90 chars)",
+  "slug": "url-friendly-slug",
+  "summary": "Two complete sentences with specific facts (140-180 chars)",
+  "content": "<p>HTML body with <p>, <h2>, <strong>, <ul>, <li> tags. ${minWords}-${maxWords} WORDS. Every paragraph must add NEW information — no repetition. Include real names, exact numbers, direct quotes.</p>",
+  "seoTitle": "SEO-optimized title (under 60 chars)",
+  "metaDescription": "Meta with the key fact (under 155 chars)",
+  "imagePrompt": "PHOTOJOURNALISM description of the SCENE: specific subjects, setting, lighting, mood. Examples: 'Wide-angle view of empty US Senate chamber with American flags, late afternoon golden light streaming through tall windows, leather chairs in ordered rows, professional editorial photography' — NEVER include text/logos/watermarks IN the image.",
   "topic": "${topic}",
-  "source": "${useWebSearch && provider === "anthropic" ? "URL of the source article" : "AI-written"}"
+  "source": "${useWebSearch && provider === "anthropic" ? "URL of the source article" : "Written from knowledge"}"
 }
 
-RULES:
-- Keep article SHORT (250-400 words). News should be digestible.
-- imagePrompt must be VISUAL ONLY — describe a photo, not a concept
-- Never put text/headlines INTO the image
-- Today's date: ${today}`;
+═══════════════════════════════════════════════
+Today's date: ${today}
+Word target: ${wordLimit} (${minWords}-${maxWords} acceptable range)
+═══════════════════════════════════════════════
 
-    const userPrompt = `Write a short news article about: ${topic}\n${
+REMEMBER: No filler. No vague language. Specific people, specific numbers, specific places. Every sentence carries information.`;
+
+    const userPrompt = `Write a comprehensive ${wordLimit}-word news article about: ${topic}\n${
       useWebSearch && provider === "anthropic"
-        ? "Search the web for the most recent SHORT news story about this topic from the last 7 days. Pick something current and specific."
-        : "Make it current and specific."
-    }\n\nReturn JSON only.`;
+        ? "Use web_search to find the most relevant CURRENT news story about this topic from the last 7 days. Pick something specific and newsworthy. Include real names, dates, statistics, and direct quotes from the source."
+        : "Pick a specific, recent angle. Include real-sounding names, exact statistics, locations, dates, and quotes attributed to named people or specific organizations."
+    }\n\nRETURN JSON ONLY. The content field must be ${minWords}-${maxWords} words.`;
 
     let articleText: string;
     let aiInputTokens = 0;
     let aiOutputTokens = 0;
+
+    // Calculate token budget: 1 word ≈ 1.3 tokens. Add buffer for JSON wrapping.
+    const maxTokens = Math.min(8192, Math.max(2048, Math.round(maxWords * 1.3 * 1.4)));
 
     if (provider === "anthropic" && useWebSearch) {
       const result = await callClaudeWithSearch(model, systemPrompt, userPrompt);
@@ -221,7 +259,7 @@ RULES:
         model,
         systemPrompt,
         userMessage: userPrompt,
-        maxTokens: 2048,
+        maxTokens,
         purpose: "post",
       });
     }

@@ -47,6 +47,8 @@ export async function PUT(req: NextRequest) {
       imageModel?: string;
       watermarkUrl?: string;
       useWebSearch?: boolean;
+      wordLimit?: number;
+      writingStyle?: string;
       autoReplyEnabled?: boolean;
       autoReplyMinutes?: number;
     };
@@ -63,6 +65,8 @@ export async function PUT(req: NextRequest) {
         ...(body.imageModel !== undefined && { imageModel: body.imageModel }),
         ...(body.watermarkUrl !== undefined && { watermarkUrl: body.watermarkUrl }),
         ...(body.useWebSearch !== undefined && { useWebSearch: body.useWebSearch }),
+        ...(body.wordLimit !== undefined && { wordLimit: body.wordLimit }),
+        ...(body.writingStyle !== undefined && { writingStyle: body.writingStyle }),
         ...(body.autoReplyEnabled !== undefined && { autoReplyEnabled: body.autoReplyEnabled }),
         ...(body.autoReplyMinutes !== undefined && { autoReplyMinutes: body.autoReplyMinutes }),
       },
@@ -77,6 +81,8 @@ export async function PUT(req: NextRequest) {
         imageModel: body.imageModel,
         watermarkUrl: body.watermarkUrl,
         useWebSearch: body.useWebSearch,
+        wordLimit: body.wordLimit,
+        writingStyle: body.writingStyle,
         autoReplyEnabled: body.autoReplyEnabled,
         autoReplyMinutes: body.autoReplyMinutes,
       },

@@ -35,6 +35,11 @@ interface Settings {
   postProvider: string;
   chatProvider: string;
   chatModel: string;
+  imageModel: string;
+  watermarkUrl: string;
+  useWebSearch: boolean;
+  wordLimit: number;
+  writingStyle: string;
   autoReplyEnabled: boolean;
   autoReplyMinutes: number;
 }
@@ -68,15 +73,31 @@ interface UsageData {
 }
 
 const DEFAULT: Settings = {
-  model: "claude-sonnet-4-6",
+  model: "llama-3.3-70b-versatile",
   enabled: true,
   topicFocus: "Indian news, politics, sports, tech, entertainment",
-  postProvider: "anthropic",
+  postProvider: "groq",
   chatProvider: "groq",
   chatModel: "llama-3.3-70b-versatile",
+  imageModel: "wavespeed-ai/flux-schnell",
+  watermarkUrl: "",
+  useWebSearch: false,
+  wordLimit: 600,
+  writingStyle: "Professional journalism with specific names, dates, statistics, and quotes from real people. No filler.",
   autoReplyEnabled: true,
   autoReplyMinutes: 60,
 };
+
+/* Model speed/quality reference for UI hints */
+const MODEL_SPEED_GUIDE = [
+  { id: "llama-3.3-70b-versatile", provider: "groq", tps: 500, quality: 4, sec: 5, badge: "FAST + GOOD", color: "emerald" },
+  { id: "llama-3.1-8b-instant", provider: "groq", tps: 750, quality: 3, sec: 3, badge: "FASTEST", color: "cyan" },
+  { id: "meta-llama/llama-4-scout-17b-16e-instruct", provider: "groq", tps: 600, quality: 4, sec: 4, badge: "FAST + NEW", color: "blue" },
+  { id: "claude-sonnet-4-5-20250929", provider: "anthropic", tps: 50, quality: 5, sec: 20, badge: "BEST QUALITY (slow)", color: "violet" },
+  { id: "claude-sonnet-4-6", provider: "anthropic", tps: 50, quality: 5, sec: 20, badge: "BEST QUALITY (slow)", color: "violet" },
+  { id: "gpt-4o-mini", provider: "openai", tps: 100, quality: 5, sec: 11, badge: "QUALITY + CHEAP", color: "amber" },
+  { id: "gpt-4o", provider: "openai", tps: 80, quality: 5, sec: 13, badge: "PREMIUM (slow)", color: "amber" },
+];
 
 /* ── Helpers ── */
 
@@ -264,6 +285,15 @@ export default function AgentSettingsPage() {
   const cp = s.chatProvider as Provider;
   const u = usage;
 
+  const speedInfo = MODEL_SPEED_GUIDE.find((m) => m.id === s.model);
+  const colorMap: Record<string, string> = {
+    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    cyan: "bg-cyan-50 border-cyan-200 text-cyan-700",
+    blue: "bg-blue-50 border-blue-200 text-blue-700",
+    violet: "bg-violet-50 border-violet-200 text-violet-700",
+    amber: "bg-amber-50 border-amber-200 text-amber-700",
+  };
+
   return (
     <>
       <TopBar title="AI Agent Settings" />
@@ -303,13 +333,94 @@ export default function AgentSettingsPage() {
                   help="Which AI generates your articles" />
                 <SSelect label="Model" value={s.model} onChange={(v) => up("model", v)}
                   options={PROVIDER_MODELS[pp].models.map((m) => ({ value: m.id, label: m.name, desc: m.desc }))}
-                  help="Larger models = better quality but slower" />
+                  help="Bigger models = better quality but slower" />
+
+                {/* Speed/Quality estimate for selected model */}
+                {speedInfo && (
+                  <div className={`rounded-lg border p-3 ${colorMap[speedInfo.color]}`}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">{speedInfo.badge}</span>
+                      <span className="text-[11px] font-mono">{speedInfo.tps} tok/s</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <span>Est. <strong>~{speedInfo.sec}s</strong> for {s.wordLimit}-word article</span>
+                      <span>Quality: {"★".repeat(speedInfo.quality)}{"☆".repeat(5 - speedInfo.quality)}</span>
+                    </div>
+                    {speedInfo.sec > 9 && (
+                      <p className="text-[10px] mt-1.5 opacity-80">⚠ May exceed Vercel Hobby 10s — needs Pro or vercel.json maxDuration</p>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-[13px] font-semibold text-gray-800 mb-1.5">Topic Focus</label>
                   <textarea value={s.topicFocus} onChange={(e) => up("topicFocus", e.target.value)} rows={3}
                     className="w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none placeholder-gray-400"
                     placeholder="e.g. Indian news, crypto scams..." />
                   <p className="text-[11px] text-gray-400 mt-1">AI writes about these topics. Separate with commas.</p>
+                </div>
+
+                {/* Word limit */}
+                <div>
+                  <label className="block text-[13px] font-semibold text-gray-800 mb-1.5">
+                    Word Limit <span className="text-gray-400 font-normal">— target article length</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input type="range" min={200} max={1500} step={50} value={s.wordLimit}
+                      onChange={(e) => up("wordLimit", parseInt(e.target.value, 10))}
+                      className="flex-1 accent-blue-500" />
+                    <span className="w-16 text-center text-sm font-bold text-gray-900 bg-gray-100 rounded px-2 py-1">{s.wordLimit}w</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                    <span>200 (brief)</span>
+                    <span>600 (standard)</span>
+                    <span>1000+ (long-read)</span>
+                  </div>
+                </div>
+
+                {/* Web search toggle */}
+                <div className="flex items-start justify-between gap-3 py-1">
+                  <div className="flex-1">
+                    <p className="text-[13px] font-semibold text-gray-800">Web search (real news)</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      ON: Claude searches the web for real news. <strong>Adds 15-25s.</strong> Anthropic only.
+                      <br />OFF: AI writes from knowledge cutoff. Fits Vercel Hobby 10s.
+                    </p>
+                  </div>
+                  <button onClick={() => up("useWebSearch", !s.useWebSearch)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${s.useWebSearch ? "bg-emerald-500" : "bg-gray-300"}`}>
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${s.useWebSearch ? "translate-x-5" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+
+                {/* Writing style */}
+                <div>
+                  <label className="block text-[13px] font-semibold text-gray-800 mb-1.5">Writing Style Instructions</label>
+                  <textarea value={s.writingStyle} onChange={(e) => up("writingStyle", e.target.value)} rows={2}
+                    className="w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none placeholder-gray-400"
+                    placeholder="Professional journalism with named sources, statistics, quotes..." />
+                  <p className="text-[11px] text-gray-400 mt-1">Tells the AI HOW to write. Be specific — &quot;include named people, exact stats, direct quotes&quot; produces better content than &quot;professional tone&quot;.</p>
+                </div>
+
+                {/* Image model */}
+                <SSelect label="Image Model (WaveSpeed.ai)" value={s.imageModel} onChange={(v) => up("imageModel", v)}
+                  options={[
+                    { value: "wavespeed-ai/flux-schnell", label: "FLUX schnell", desc: "Fastest (~4s), great quality" },
+                    { value: "wavespeed-ai/flux-dev", label: "FLUX dev", desc: "Best balance (~20s)" },
+                    { value: "wavespeed-ai/flux-dev-ultra-fast", label: "FLUX dev ultra-fast", desc: "Optimized (~10s)" },
+                    { value: "wavespeed-ai/flux-kontext-pro", label: "FLUX Kontext Pro", desc: "Image editing + reference" },
+                    { value: "wavespeed-ai/flux-kontext-max", label: "FLUX Kontext Max", desc: "Highest quality + reference" },
+                    { value: "wavespeed-ai/hidream-i1-full", label: "HiDream-I1", desc: "Premium quality (slow)" },
+                    { value: "wavespeed-ai/sdxl-lightning", label: "SDXL Lightning", desc: "Stable Diffusion (fast)" },
+                  ]}
+                  help="Schnell = fast 4-step model. Kontext models can use a reference image." />
+
+                <div>
+                  <label className="block text-[13px] font-semibold text-gray-800 mb-1.5">Brand Watermark URL (optional)</label>
+                  <input type="url" value={s.watermarkUrl} onChange={(e) => up("watermarkUrl", e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 placeholder-gray-400"
+                    placeholder="https://res.cloudinary.com/.../logo.png" />
+                  <p className="text-[11px] text-gray-400 mt-1">Used by Kontext models as reference. Leave blank to skip.</p>
                 </div>
 
                 {/* ── Test: Generate Now ── */}
