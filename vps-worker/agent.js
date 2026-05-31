@@ -190,6 +190,19 @@ function sanitizeJsonString(input) {
   return result;
 }
 
+// Lazy-loaded JSON repair library (handles unescaped quotes inside HTML strings,
+// trailing commas, unquoted keys, and other common AI output issues)
+let _jsonrepair;
+function loadJsonRepair() {
+  if (_jsonrepair !== undefined) return _jsonrepair;
+  try {
+    _jsonrepair = require("jsonrepair").jsonrepair;
+  } catch {
+    _jsonrepair = null;
+  }
+  return _jsonrepair;
+}
+
 function extractJson(raw) {
   let s = raw.trim();
   if (s.startsWith("```")) s = s.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -197,11 +210,33 @@ function extractJson(raw) {
   const last = s.lastIndexOf("}");
   if (first !== -1 && last !== -1) s = s.slice(first, last + 1);
 
+  // Attempt 1: parse as-is (works for clean output)
   try {
     return JSON.parse(s);
   } catch {
-    return JSON.parse(sanitizeJsonString(s));
+    /* fall through */
   }
+
+  // Attempt 2: sanitize control characters inside string literals
+  try {
+    return JSON.parse(sanitizeJsonString(s));
+  } catch {
+    /* fall through */
+  }
+
+  // Attempt 3: full JSON repair (handles unescaped quotes in HTML, etc.)
+  const repair = loadJsonRepair();
+  if (repair) {
+    try {
+      return JSON.parse(repair(s));
+    } catch {
+      // Try with sanitize too
+      return JSON.parse(repair(sanitizeJsonString(s)));
+    }
+  }
+
+  // Last resort — throw with truncated context
+  throw new Error("All JSON parse attempts failed");
 }
 
 /* ─── Main agent run ─── */
