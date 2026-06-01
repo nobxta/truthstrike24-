@@ -528,6 +528,38 @@ export default function AiCustomPageForm() {
       {/* ── STAGE: THEME ── */}
       {stage === "theme" && (
         <div className="max-w-5xl mx-auto">
+          {/* Recent Drafts panel */}
+          <DraftsPanel
+            onResumeJob={(jobId, themeKeyFromJob) => {
+              if (themeKeyFromJob) setThemeKey(themeKeyFromJob);
+              setStage("loading");
+              setGenStatus("running");
+              setSuccess("Loading saved draft...");
+              setTimeout(() => setSuccess(""), 2500);
+              (async () => {
+                try {
+                  const r = await fetch(`/api/custom-pages/generate/${jobId}`);
+                  const d = await r.json();
+                  if (!r.ok || d.status !== "done") {
+                    throw new Error(d.error || "Draft no longer available");
+                  }
+                  if (d.themeKey) setThemeKey(d.themeKey);
+                  applyGenerated(d.page || {}, d.imageUrl || "");
+                  setStage("draft");
+                  setGenStatus(null);
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : "Failed");
+                  setStage("theme");
+                  setGenStatus(null);
+                }
+              })();
+            }}
+            onOpenDraft={(slug, pageId) => {
+              router.push(`/admin/custom-pages/${pageId}/edit`);
+              void slug;
+            }}
+          />
+
           <h2 className="text-lg font-bold text-navy mb-1">Pick a theme</h2>
           <p className="text-sm text-gray-500 mb-5">
             Choose the visual style for your page. The AI will tailor the
@@ -1242,6 +1274,214 @@ function SectionEditor({
           />
         )}
       </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Recent Drafts panel — shows recoverable items
+   ────────────────────────────────────────────────────────────── */
+
+interface DraftJob {
+  type: "job";
+  jobId: string;
+  title: string;
+  preview: string;
+  themeKey: string | null;
+  heroImage: string | null;
+  completedAt: string;
+  context: string;
+  provider: string;
+  model: string;
+  tokens: number;
+  cost: number;
+}
+interface DraftPage {
+  type: "page";
+  pageId: string;
+  slug: string;
+  title: string;
+  preview: string;
+  themeKey: string;
+  heroImage: string | null;
+  updatedAt: string;
+}
+
+function DraftsPanel({
+  onResumeJob,
+  onOpenDraft,
+}: {
+  onResumeJob: (jobId: string, themeKey: string | null) => void;
+  onOpenDraft: (slug: string, pageId: string) => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<DraftJob[]>([]);
+  const [drafts, setDrafts] = useState<DraftPage[]>([]);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/custom-pages/drafts");
+        if (!res.ok) {
+          setLoading(false);
+          return;
+        }
+        const data = (await res.json()) as { jobs: DraftJob[]; drafts: DraftPage[] };
+        if (cancelled) return;
+        setJobs(data.jobs || []);
+        setDrafts(data.drafts || []);
+      } catch {
+        /* */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const total = jobs.length + drafts.length;
+  if (loading) {
+    return (
+      <div className="mb-6 bg-white border border-gray-200 rounded-lg p-4 flex items-center gap-2 text-xs text-gray-400">
+        <Loader2 size={12} className="animate-spin" />
+        Loading recent drafts...
+      </div>
+    );
+  }
+  if (total === 0) return null;
+
+  function timeAgo(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return `${d}d ago`;
+  }
+
+  return (
+    <div className="mb-6 bg-blue-50/50 border border-blue-200 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setCollapsed((c) => !c)}
+        className="w-full px-4 py-3 flex items-center gap-2 hover:bg-blue-50 transition-colors"
+      >
+        <FileText size={14} className="text-blue-600" />
+        <span className="text-sm font-semibold text-gray-800">
+          Recent Drafts ({total})
+        </span>
+        <span className="text-xs text-gray-500">
+          {jobs.length > 0 && `${jobs.length} generated`}
+          {jobs.length > 0 && drafts.length > 0 && " · "}
+          {drafts.length > 0 && `${drafts.length} saved`}
+        </span>
+        <span className="ml-auto">
+          {collapsed ? (
+            <ChevronDown size={14} className="text-gray-400" />
+          ) : (
+            <ChevronUp size={14} className="text-gray-400" />
+          )}
+        </span>
+      </button>
+
+      {!collapsed && (
+        <div className="border-t border-blue-200 max-h-96 overflow-y-auto">
+          {/* Generated jobs (not yet published) */}
+          {jobs.length > 0 && (
+            <div>
+              <div className="px-4 py-2 bg-blue-100/40 text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                Generated by AI — click to load
+              </div>
+              {jobs.map((j) => (
+                <button
+                  key={j.jobId}
+                  onClick={() => onResumeJob(j.jobId, j.themeKey)}
+                  className="w-full px-4 py-3 flex items-center gap-3 border-t border-blue-100/50 hover:bg-white text-left transition-colors"
+                >
+                  {j.heroImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={j.heroImage}
+                      alt=""
+                      className="w-14 h-9 rounded object-cover border border-gray-200 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-14 h-9 rounded bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
+                      <ImageIcon size={14} className="text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-800 truncate">
+                      {j.title}
+                    </p>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-0.5">
+                      <span>{j.themeKey}</span>
+                      <span>·</span>
+                      <span>{timeAgo(j.completedAt)}</span>
+                      {j.cost > 0 && (
+                        <>
+                          <span>·</span>
+                          <span className="text-amber-600 font-semibold">
+                            ${j.cost.toFixed(3)}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <ArrowRight size={14} className="text-gray-400 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Saved CustomPage drafts (published=false) */}
+          {drafts.length > 0 && (
+            <div>
+              <div className="px-4 py-2 bg-amber-50 border-t border-blue-100/50 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                Saved drafts — click to edit
+              </div>
+              {drafts.map((d) => (
+                <button
+                  key={d.pageId}
+                  onClick={() => onOpenDraft(d.slug, d.pageId)}
+                  className="w-full px-4 py-3 flex items-center gap-3 border-t border-blue-100/50 hover:bg-white text-left transition-colors"
+                >
+                  {d.heroImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={d.heroImage}
+                      alt=""
+                      className="w-14 h-9 rounded object-cover border border-gray-200 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-14 h-9 rounded bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0">
+                      <ImageIcon size={14} className="text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-800 truncate">
+                      {d.title}
+                    </p>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-0.5">
+                      <span>{d.themeKey}</span>
+                      <span>·</span>
+                      <span>/p/{d.slug}</span>
+                      <span>·</span>
+                      <span>{timeAgo(d.updatedAt)}</span>
+                    </div>
+                  </div>
+                  <ArrowRight size={14} className="text-gray-400 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
