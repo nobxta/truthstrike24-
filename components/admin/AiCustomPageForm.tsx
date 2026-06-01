@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const JOB_STORAGE_KEY = "truthstrike-pending-custompage-job";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -215,44 +217,133 @@ export default function AiCustomPageForm() {
         throw new Error(createData.error || "Failed to create job");
       }
       const jobId = createData.jobId;
-
-      // Poll
-      const deadline = Date.now() + 180 * 1000;
-      let lastStatus = "pending";
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const pollRes = await fetch(`/api/custom-pages/generate/${jobId}`);
-        const pollData = (await pollRes.json()) as {
-          status: string;
-          page?: GeneratedPage;
-          imageUrl?: string | null;
-          error?: string;
-        };
-        if (!pollRes.ok) throw new Error(pollData.error || "Poll failed");
-
-        if (pollData.status === "running" && lastStatus !== "running") {
-          setGenStatus("running");
-          lastStatus = "running";
-        }
-        if (pollData.status === "done") {
-          setGenStatus("done");
-          applyGenerated(pollData.page || {}, pollData.imageUrl || "");
-          setStage("draft");
-          setSuccess("Page generated");
-          setTimeout(() => setSuccess(""), 3000);
-          return;
-        }
-        if (pollData.status === "failed") {
-          throw new Error(pollData.error || "Generation failed on VPS");
-        }
-      }
-      throw new Error("Timed out after 3 minutes — check VPS worker logs");
+      // Persist jobId so a page refresh can resume polling
+      saveJobId(jobId);
+      await pollUntilDone(jobId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed");
       setStage("brief");
       setGenStatus(null);
+      clearJobId();
     }
   }
+
+  /** Persist/recover jobId across page reloads */
+  function saveJobId(id: string) {
+    try {
+      localStorage.setItem(JOB_STORAGE_KEY, JSON.stringify({ id, themeKey, savedAt: Date.now() }));
+    } catch { /* */ }
+  }
+  function clearJobId() {
+    try { localStorage.removeItem(JOB_STORAGE_KEY); } catch { /* */ }
+  }
+
+  /** Polls a jobId until done/failed/timeout. Used both for fresh submissions and recovery. */
+  async function pollUntilDone(jobId: string) {
+    const deadline = Date.now() + 240 * 1000; // 4 min buffer
+    let lastStatus = "pending";
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const pollRes = await fetch(`/api/custom-pages/generate/${jobId}`);
+      const pollData = (await pollRes.json()) as {
+        status: string;
+        page?: GeneratedPage;
+        imageUrl?: string | null;
+        themeKey?: string;
+        error?: string;
+      };
+      if (!pollRes.ok) throw new Error(pollData.error || "Poll failed");
+
+      if (pollData.status === "running" && lastStatus !== "running") {
+        setGenStatus("running");
+        lastStatus = "running";
+      }
+      if (pollData.status === "done") {
+        setGenStatus("done");
+        // If the saved themeKey differs (recovered job), switch the theme
+        if (pollData.themeKey && pollData.themeKey !== themeKey) {
+          setThemeKey(pollData.themeKey);
+        }
+        applyGenerated(pollData.page || {}, pollData.imageUrl || "");
+        setStage("draft");
+        setSuccess("Page generated");
+        setTimeout(() => setSuccess(""), 3000);
+        clearJobId();
+        return;
+      }
+      if (pollData.status === "failed") {
+        clearJobId();
+        throw new Error(pollData.error || "Generation failed on VPS");
+      }
+    }
+    throw new Error("Timed out after 4 minutes — check VPS worker logs");
+  }
+
+  /* ── On mount: auto-resume an in-progress job from localStorage ── */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = localStorage.getItem(JOB_STORAGE_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw) as { id?: string; themeKey?: string; savedAt?: number };
+        if (!saved.id) return;
+        // Expire after 30 minutes
+        if (saved.savedAt && Date.now() - saved.savedAt > 30 * 60 * 1000) {
+          clearJobId();
+          return;
+        }
+        // Probe the job status first
+        const probe = await fetch(`/api/custom-pages/generate/${saved.id}`);
+        if (!probe.ok) {
+          clearJobId();
+          return;
+        }
+        const probeData = (await probe.json()) as {
+          status: string;
+          page?: GeneratedPage;
+          imageUrl?: string | null;
+          themeKey?: string;
+        };
+        if (cancelled) return;
+
+        if (probeData.status === "done") {
+          if (probeData.themeKey) setThemeKey(probeData.themeKey);
+          applyGenerated(probeData.page || {}, probeData.imageUrl || "");
+          setStage("draft");
+          setSuccess("Recovered your previously generated page");
+          setTimeout(() => setSuccess(""), 4000);
+          clearJobId();
+          return;
+        }
+        if (probeData.status === "pending" || probeData.status === "running") {
+          if (saved.themeKey) setThemeKey(saved.themeKey);
+          setStage("loading");
+          setGenStatus(probeData.status === "running" ? "running" : "queued");
+          setSuccess("Resuming in-progress generation...");
+          setTimeout(() => setSuccess(""), 3000);
+          try {
+            await pollUntilDone(saved.id);
+          } catch (e) {
+            if (!cancelled) {
+              setError(e instanceof Error ? e.message : "Failed");
+              setStage("brief");
+              setGenStatus(null);
+            }
+          }
+          return;
+        }
+        // Failed or unknown — discard
+        clearJobId();
+      } catch {
+        clearJobId();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function applyGenerated(page: GeneratedPage, imageUrl: string) {
     const t = page.title || "";
