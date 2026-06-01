@@ -78,16 +78,44 @@ export async function sendEmail({
 }: SendEmailParams): Promise<boolean> {
   try {
     const domain = getDomain();
-    await transporter.sendMail({
+    const result = await transporter.sendMail({
       from: fromHeader(from),
       to,
       subject,
       html,
       ...(replyTo && { replyTo: `${replyTo}@${domain}` }),
     });
+    console.log(`[Email Sent] to=${to} from=${from}@${domain} messageId=${result.messageId}`);
     return true;
   } catch (error) {
-    console.error("[Email Error]", error);
+    // Spacemail (and most providers) will reject sending AS an alias if you
+    // haven't configured that alias. If the role-based From failed, retry
+    // with the authenticated user as the From (admin@) so the user still
+    // gets the welcome email even if alias delivery isn't set up.
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[Email Error] role=${from} to=${to} :`, errMsg);
+
+    // Retry with SMTP_USER as the From — works if the SMTP provider
+    // requires sender == authenticated user
+    if (from !== "no-reply") {
+      try {
+        const fallbackFrom = process.env.SMTP_USER || "admin@truthstrike24.com";
+        const result = await transporter.sendMail({
+          from: `"TruthStrike24" <${fallbackFrom}>`,
+          to,
+          subject,
+          html,
+          ...(replyTo && { replyTo: `${replyTo}@${getDomain()}` }),
+        });
+        console.log(`[Email Sent — fallback] to=${to} from=${fallbackFrom} messageId=${result.messageId}`);
+        return true;
+      } catch (fallbackErr) {
+        const fmsg =
+          fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+        console.error("[Email Error — fallback also failed]", fmsg);
+        return false;
+      }
+    }
     return false;
   }
 }

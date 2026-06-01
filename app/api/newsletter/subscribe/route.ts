@@ -15,7 +15,7 @@ import { sendEmail } from "@/lib/email";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function welcomeNewsletterHtml(email: string): string {
+function welcomeNewsletterHtml(email: string, unsubUrl: string): string {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #ffffff;">
       <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
@@ -35,10 +35,15 @@ function welcomeNewsletterHtml(email: string): string {
             <strong>Coming soon:</strong> Daily news digest · Investigation alerts · Breaking story notifications
           </p>
         </div>
-        <p style="color: #9ca3af; font-size: 12px; line-height: 1.5; margin: 24px 0 0;">
-          You're receiving this because you subscribed at <a href="https://truthstrike24.com" style="color: #dc2626; text-decoration: none;">truthstrike24.com</a>.<br/>
-          Didn't sign up? Just ignore this email — we won't send anything else without your consent.
-        </p>
+        <div style="border-top: 1px solid #e5e7eb; margin: 28px 0 0; padding-top: 18px;">
+          <p style="color: #9ca3af; font-size: 12px; line-height: 1.5; margin: 0;">
+            Don't want these emails? <a href="${unsubUrl}" style="color: #dc2626; text-decoration: underline; font-weight: 600;">Unsubscribe with one click</a>.
+          </p>
+          <p style="color: #9ca3af; font-size: 11px; line-height: 1.5; margin: 8px 0 0;">
+            You're receiving this because you subscribed at <a href="https://truthstrike24.com" style="color: #6b7280; text-decoration: none;">truthstrike24.com</a>.<br/>
+            Didn't sign up yourself? Click unsubscribe above — we won't bother you again.
+          </p>
+        </div>
       </div>
       <p style="text-align: center; font-size: 11px; color: #9ca3af; margin: 18px 0 0;">
         TruthStrike24 · Independent journalism · ${new Date().getFullYear()}
@@ -103,21 +108,41 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Send welcome email (don't block the response if it fails)
-    sendEmail({
-      to: email,
-      subject: "You're subscribed to TruthStrike24",
-      html: welcomeNewsletterHtml(email),
-      from: "news",
-      replyTo: "news",
-    }).catch((e) => console.error("[newsletter welcome email]", e));
+    // Build the public unsubscribe URL using the per-subscriber token
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      `https://${req.headers.get("host") || "truthstrike24.vercel.app"}`;
+    const unsubUrl = `${siteUrl}/unsubscribe/${sub.unsubToken}`;
+
+    // Send welcome email — AWAIT so we know if SMTP failed
+    let emailSent = false;
+    let emailError: string | null = null;
+    try {
+      emailSent = await sendEmail({
+        to: email,
+        subject: "You're subscribed to TruthStrike24",
+        html: welcomeNewsletterHtml(email, unsubUrl),
+        from: "news",
+        replyTo: "news",
+      });
+      if (!emailSent) {
+        emailError = "Email service did not deliver. Your subscription is saved.";
+      }
+    } catch (err) {
+      emailError = err instanceof Error ? err.message : "Email send failed";
+      console.error("[newsletter welcome email]", err);
+    }
 
     return NextResponse.json({
       success: true,
       alreadySubscribed: false,
       reactivated: false,
       subscriberId: sub.id,
-      message: "Saved! Check your inbox for confirmation.",
+      emailSent,
+      emailError,
+      message: emailSent
+        ? "Saved! Check your inbox for confirmation."
+        : "Subscription saved, but we couldn't send the confirmation email right now. You're still on the list.",
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed";
