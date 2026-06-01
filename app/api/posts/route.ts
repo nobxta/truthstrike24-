@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
       featuredImage,
       seoTitle,
       metaDescription,
+      keywords,
       status,
       publishedAt,
       categoryId,
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
       featuredImage: string;
       seoTitle: string;
       metaDescription: string;
+      keywords?: string;
       status: string;
       publishedAt?: string;
       categoryId: string;
@@ -104,6 +106,7 @@ export async function POST(req: NextRequest) {
         featuredImage: featuredImage || "",
         seoTitle: seoTitle || title,
         metaDescription: metaDescription || summary || "",
+        keywords: keywords || "",
         status: status || "draft",
         publishedAt:
           status === "published"

@@ -57,6 +57,7 @@ model Post {
   isBreaking      Boolean   @default(false)
   imagePrompt     String?   @db.Text
   imageStatus     String    @default("none") // "none" | "pending" | "done" | "failed"
+  keywords        String    @default("") // comma-separated SEO keywords for tagging
 }
 
 model PostTag {

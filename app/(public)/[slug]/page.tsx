@@ -29,19 +29,65 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: true,
       summary: true,
       featuredImage: true,
+      keywords: true,
+      publishedAt: true,
+      updatedAt: true,
+      author: { select: { name: true } },
+      category: { select: { name: true } },
     },
   });
 
   if (!post) return { title: "Article Not Found" };
 
+  const fullTitle = post.seoTitle
+    ? post.seoTitle.includes("TruthStrike24")
+      ? post.seoTitle
+      : `${post.seoTitle} | TruthStrike24`
+    : `${post.title} | TruthStrike24`;
+
+  const description = post.metaDescription || post.summary;
+  const keywordsArr = post.keywords
+    ? post.keywords.split(",").map((k) => k.trim()).filter(Boolean)
+    : undefined;
+
   return {
-    title: `${post.seoTitle || post.title} — TruthStrike24`,
-    description: post.metaDescription || post.summary,
+    title: fullTitle,
+    description,
+    keywords: keywordsArr,
+    authors: post.author?.name ? [{ name: post.author.name }] : undefined,
+    category: post.category?.name,
     openGraph: {
       title: post.seoTitle || post.title,
-      description: post.metaDescription || post.summary,
-      images: post.featuredImage ? [post.featuredImage] : [],
+      description,
+      images: post.featuredImage
+        ? [{ url: post.featuredImage, width: 1200, height: 630, alt: post.title }]
+        : [],
       type: "article",
+      publishedTime: post.publishedAt?.toISOString(),
+      modifiedTime: post.updatedAt?.toISOString(),
+      authors: post.author?.name ? [post.author.name] : undefined,
+      section: post.category?.name,
+      tags: keywordsArr,
+      siteName: "TruthStrike24",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: post.seoTitle || post.title,
+      description,
+      images: post.featuredImage ? [post.featuredImage] : [],
+    },
+    alternates: {
+      canonical: `/${params.slug}`,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+      },
     },
   };
 }
@@ -50,6 +96,7 @@ export default async function ArticlePage({ params }: Props) {
   const post = await prisma.post.findUnique({
     where: { slug: params.slug, status: "published" },
     include: {
+      author: { select: { name: true } },
       category: {
         select: { name: true, slug: true, color: true },
       },
@@ -109,8 +156,45 @@ export default async function ArticlePage({ params }: Props) {
   const dateStr =
     post.publishedAt?.toISOString() || post.createdAt.toISOString();
 
+  // JSON-LD structured data (Article schema) for Google rich results
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://truthstrike24.vercel.app";
+  const articleSchema = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: post.title,
+    description: post.metaDescription || post.summary,
+    image: post.featuredImage ? [post.featuredImage] : undefined,
+    datePublished: dateStr,
+    dateModified: post.updatedAt.toISOString(),
+    author: post.author?.name
+      ? {
+          "@type": "Person",
+          name: post.author.name,
+        }
+      : undefined,
+    publisher: {
+      "@type": "Organization",
+      name: "TruthStrike24",
+      logo: {
+        "@type": "ImageObject",
+        url: `${siteUrl}/logo.png`,
+      },
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `${siteUrl}/${params.slug}`,
+    },
+    articleSection: post.category?.name,
+    keywords: post.keywords || undefined,
+  };
+
   return (
     <>
+      {/* Schema.org JSON-LD for Google rich results */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
       <ReadingProgress />
 
       {/* ── Hero ── */}

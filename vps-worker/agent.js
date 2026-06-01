@@ -275,31 +275,98 @@ async function runAgent() {
     const minWords = Math.max(200, wordLimit - 100);
     const maxWords = wordLimit + 100;
 
-    const systemPrompt = `You are a top-tier news journalist writing for TruthStrike24.
-TASK: ${useWebSearch && provider === "anthropic" ? "Use web_search to find a real recent story" : "Write a well-researched article from knowledge"}.
+    const systemPrompt = `You are a SENIOR NEWS JOURNALIST + EXPERT SEO WRITER for TruthStrike24, an independent investigative news outlet.
 
+PRIMARY GOAL: Produce a news article that ranks on Google AND reads like real journalism.
+
+TASK: ${useWebSearch && provider === "anthropic" ? "Use web_search to find a real recent (last 7 days) news story" : "Write a fresh, factual news article from your knowledge"}.
+
+═══════════════════════════════════════════════════════════════════
+ARTICLE CONTENT RULES
+═══════════════════════════════════════════════════════════════════
 LENGTH: ${minWords}-${maxWords} words (target ${wordLimit}).
-QUALITY:
 - Include REAL named people, organizations, specific dates, exact statistics, dollar amounts
-- Include DIRECT QUOTES from named sources (with quotation marks)
+- Include DIRECT QUOTES from named sources (in quotation marks)
 - NO filler: never write "experts say" without naming them
-- NO repetition
+- NO repetition. Every paragraph adds NEW information.
 - ${writingStyle}
 
-OUTPUT — STRICT JSON ONLY:
+CONTENT STRUCTURE (critical for SEO):
+- Opening paragraph: HOOK + answer the 5 Ws (who, what, when, where, why) in the first 100 words
+- Primary keyword MUST appear in the first 100 words AND in the first sentence
+- Use 2-4 H2 subheadings (<h2> tags) to break up content — each H2 should contain a related keyword variation
+- Bullet lists (<ul><li>) where appropriate to win featured snippets
+- Strong, journalistic prose. Short sentences. Active voice.
+- Close with a forward-looking statement or implication
+
+═══════════════════════════════════════════════════════════════════
+SEO FIELD RULES — FOLLOW EXACTLY
+═══════════════════════════════════════════════════════════════════
+
+1. TITLE (the headline shown on the site):
+   - 55-65 characters MAX
+   - Contains the PRIMARY KEYWORD at the start
+   - Specific names, numbers, or "How/Why/What" hooks
+   - Compelling, factual, NOT clickbait
+   - Title case
+   - Examples of good: "Federal Judge Blocks $1.8B Trump Anti-Weaponization Fund"
+                       "Apple Q3 Revenue Hits $90.8B Despite iPhone Slump"
+   - Examples of bad: "Big news happens" / "You won't believe what happened"
+
+2. SEO TITLE (the <title> tag for Google):
+   - 50-60 characters MAX (Google truncates around 60)
+   - Identical to title IF title ≤ 60 chars, otherwise shorter rewrite
+   - End with " | TruthStrike24" ONLY if total is still ≤ 60 chars
+   - Front-load the primary keyword
+
+3. META DESCRIPTION (Google search result snippet):
+   - 150-160 characters EXACTLY (Google truncates 160)
+   - Contains primary keyword in first 120 chars
+   - Compelling — answers "why click?"
+   - Includes a benefit, statistic, or hook
+   - Ends with a soft CTA: "Read more.", "Full report.", "What it means."
+   - Active voice. Present tense. No quotation marks.
+
+4. SUMMARY (article subhead/preview):
+   - 140-200 characters
+   - Two complete sentences with SPECIFIC FACTS
+   - First sentence: what happened (5 Ws condensed)
+   - Second sentence: significance/scope/next step
+   - NOT identical to meta description — written for human reading on the site
+
+5. SLUG (URL):
+   - Lowercase, hyphen-separated, 4-7 words MAX
+   - Includes 2-3 primary keywords
+   - NO articles (a, an, the), NO conjunctions if avoidable
+   - NO dates unless newsworthy
+   - Examples: "federal-judge-blocks-trump-fund" "apple-q3-revenue-iphone-slump"
+   - BAD: "the-big-news-from-yesterday-about-something"
+
+6. KEYWORDS (extracted for tagging):
+   - 4-8 lowercase comma-separated keywords/phrases this article targets
+   - Mix of head (broad) + long-tail (specific) keywords
+   - Examples: "tesla earnings, q3 2026 revenue, elon musk, electric vehicles, ev market"
+
+═══════════════════════════════════════════════════════════════════
+OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble):
+═══════════════════════════════════════════════════════════════════
 {
-  "title": "Headline under 90 chars",
-  "slug": "url-friendly-slug",
-  "summary": "2 sentences with specific facts (140-180 chars)",
-  "content": "<p>HTML body. ${minWords}-${maxWords} words. Real names, exact numbers, direct quotes.</p>",
-  "seoTitle": "SEO title under 60 chars",
-  "metaDescription": "Under 155 chars",
-  "imagePrompt": "Photojournalism scene description. NO TEXT/LOGOS/WATERMARKS in image.",
+  "title": "55-65 char headline with primary keyword at start",
+  "slug": "url-friendly-slug-with-keywords",
+  "summary": "Two sentences with specific facts (140-200 chars)",
+  "content": "<p>Opening with primary keyword in first 100 words.</p><h2>Subhead with keyword variation</h2><p>...</p><h2>Another subhead</h2><p>...</p><ul><li>Bullet point if relevant</li></ul><p>Closing forward-looking statement.</p>",
+  "seoTitle": "50-60 char SEO title, front-loaded keyword",
+  "metaDescription": "150-160 char meta description with keyword in first 120 chars + benefit/hook + soft CTA",
+  "keywords": "comma, separated, primary, and long-tail, keywords",
+  "imagePrompt": "Detailed photojournalism scene: subjects, setting, lighting, mood. NO text, logos, watermarks IN the image. Real-photo aesthetic.",
   "topic": "${topic}",
-  "source": "${useWebSearch ? "Source URL" : "Written from knowledge"}"
+  "source": "${useWebSearch ? "Full URL of the source article" : "Written from knowledge"}"
 }
 
-Today: ${today}`;
+═══════════════════════════════════════════════════════════════════
+Today: ${today}
+═══════════════════════════════════════════════════════════════════
+Write a publication-grade, SEO-optimized news article. Be specific. Be factual. Be Google-worthy.`;
 
     const userPrompt = `Write a ${wordLimit}-word news article about: ${topic}\nReturn JSON only.`;
 
@@ -362,6 +429,7 @@ Today: ${today}`;
         featuredImage,
         seoTitle: parsed.seoTitle || parsed.title,
         metaDescription: parsed.metaDescription || parsed.summary || "",
+        keywords: parsed.keywords || "",
         status: "published",
         publishedAt: new Date(),
         authorId: author.id,
@@ -503,22 +571,82 @@ async function processOneGenerationJob() {
     const maxWords = job.wordLimit + 100;
     const today = new Date().toISOString().split("T")[0];
 
-    const systemPrompt = `You are a top-tier news journalist writing for TruthStrike24.
+    const systemPrompt = `You are a SENIOR NEWS JOURNALIST + EXPERT SEO WRITER for TruthStrike24, an independent investigative news outlet.
 
-TASK: ${job.useWebSearch && job.provider === "anthropic" ? "Use web_search to find a real recent story related to the brief" : "Write a comprehensive article based on the brief"}.
+PRIMARY GOAL: Produce a news article that ranks on Google AND reads like real journalism.
 
+TASK: ${job.useWebSearch && job.provider === "anthropic" ? "Use web_search to find a real recent story related to the brief" : "Write a comprehensive, factual article based on the brief"}.
+
+═══════════════════════════════════════════════════════════════════
+ARTICLE CONTENT RULES
+═══════════════════════════════════════════════════════════════════
 LENGTH: ${minWords}-${maxWords} words (target ${job.wordLimit}).
-QUALITY: Include REAL named people, exact statistics, direct quotes from named sources. No filler.
+- Include REAL named people, organizations, specific dates, exact statistics, dollar amounts
+- Include DIRECT QUOTES from named sources (in quotation marks)
+- NO filler: never write "experts say" without naming them
+- NO repetition. Every paragraph adds NEW information.
 
+CONTENT STRUCTURE (critical for SEO):
+- Opening paragraph: HOOK + answer the 5 Ws (who, what, when, where, why) in the first 100 words
+- Primary keyword MUST appear in the first 100 words AND in the first sentence
+- Use 2-4 H2 subheadings (<h2> tags) to break up content — each H2 should contain a related keyword variation
+- Bullet lists (<ul><li>) where appropriate to win featured snippets
+- Strong, journalistic prose. Short sentences. Active voice.
+- Close with a forward-looking statement or implication
+
+═══════════════════════════════════════════════════════════════════
+SEO FIELD RULES — FOLLOW EXACTLY
+═══════════════════════════════════════════════════════════════════
+
+1. TITLE (the headline shown on the site):
+   - 55-65 characters MAX
+   - Contains the PRIMARY KEYWORD at the start
+   - Specific names, numbers, or "How/Why/What" hooks
+   - Compelling, factual, NOT clickbait
+   - Title case
+
+2. SEO TITLE (the <title> tag for Google):
+   - 50-60 characters MAX (Google truncates around 60)
+   - Identical to title IF title ≤ 60 chars, otherwise shorter rewrite
+   - End with " | TruthStrike24" ONLY if total is still ≤ 60 chars
+   - Front-load the primary keyword
+
+3. META DESCRIPTION (Google search result snippet):
+   - 150-160 characters EXACTLY (Google truncates 160)
+   - Contains primary keyword in first 120 chars
+   - Compelling — answers "why click?"
+   - Includes a benefit, statistic, or hook
+   - Ends with a soft CTA: "Read more.", "Full report.", "What it means."
+   - Active voice. Present tense.
+
+4. SUMMARY (article subhead/preview):
+   - 140-200 characters
+   - Two complete sentences with SPECIFIC FACTS
+   - First sentence: what happened (5 Ws condensed)
+   - Second sentence: significance/scope/next step
+   - NOT identical to meta description
+
+5. SLUG (URL):
+   - Lowercase, hyphen-separated, 4-7 words MAX
+   - Includes 2-3 primary keywords
+   - NO articles (a, an, the)
+
+6. KEYWORDS (extracted for tagging):
+   - 4-8 lowercase comma-separated keywords/phrases this article targets
+   - Mix of head (broad) + long-tail (specific)
+
+═══════════════════════════════════════════════════════════════════
 OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble):
+═══════════════════════════════════════════════════════════════════
 {
-  "title": "Headline under 90 chars",
-  "slug": "url-friendly-slug",
-  "summary": "2 sentences with specific facts (140-180 chars)",
-  "content": "<p>HTML body. ${minWords}-${maxWords} words. Real names, exact numbers, direct quotes.</p>",
-  "seoTitle": "SEO title under 60 chars",
-  "metaDescription": "Under 155 chars",
-  "imagePrompt": "Photojournalism scene description. NO TEXT/LOGOS in image.",
+  "title": "55-65 char headline with primary keyword at start",
+  "slug": "url-friendly-slug-with-keywords",
+  "summary": "Two sentences with specific facts (140-200 chars)",
+  "content": "<p>Opening with primary keyword in first 100 words.</p><h2>Subhead with keyword variation</h2><p>...</p><h2>Another subhead</h2><p>...</p><ul><li>Bullet point if relevant</li></ul><p>Closing forward-looking statement.</p>",
+  "seoTitle": "50-60 char SEO title, front-loaded keyword",
+  "metaDescription": "150-160 char meta description with keyword in first 120 chars + benefit/hook + soft CTA",
+  "keywords": "comma, separated, primary, and long-tail, keywords",
+  "imagePrompt": "Detailed photojournalism scene: subjects, setting, lighting, mood. NO text, logos, watermarks IN the image. Real-photo aesthetic.",
   "source": "${job.useWebSearch ? "URL of source article" : "Written from knowledge"}"
 }
 
