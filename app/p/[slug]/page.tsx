@@ -11,18 +11,57 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const page = await prisma.customPage.findUnique({
     where: { slug: params.slug, published: true },
-    select: { title: true, metaTitle: true, metaDesc: true, heroImage: true },
+    select: {
+      title: true,
+      headline: true,
+      subheadline: true,
+      metaTitle: true,
+      metaDesc: true,
+      heroImage: true,
+      updatedAt: true,
+    },
   });
 
   if (!page) return { title: "Page Not Found" };
 
+  const title = page.metaTitle || page.title;
+  const description =
+    page.metaDesc ||
+    page.subheadline ||
+    page.headline ||
+    page.title;
+  const image = page.heroImage || undefined;
+
   return {
-    title: page.metaTitle || page.title,
-    description: page.metaDesc || undefined,
+    title,
+    description,
     openGraph: {
-      title: page.metaTitle || page.title,
-      description: page.metaDesc || undefined,
-      images: page.heroImage ? [page.heroImage] : [],
+      type: "article",
+      title: page.metaTitle || page.headline || page.title,
+      description,
+      images: image
+        ? [{ url: image, width: 1200, height: 630, alt: page.title }]
+        : undefined,
+      siteName: "TruthStrike24",
+      modifiedTime: page.updatedAt?.toISOString(),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: page.metaTitle || page.headline || page.title,
+      description,
+      images: image ? [image] : undefined,
+    },
+    alternates: {
+      canonical: `/p/${params.slug}`,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+      },
     },
   };
 }
