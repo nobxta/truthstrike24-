@@ -64,6 +64,8 @@ export async function POST(
         to: chat.email,
         subject: `New Reply: ${chat.subject}`,
         html: adminRepliedEmail(chat.name, chatUrl),
+        from: "support",
+        replyTo: "support",
       });
     }
 

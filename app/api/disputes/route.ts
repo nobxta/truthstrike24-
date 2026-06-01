@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
       to: email,
       subject: `Dispute Received: ${subject}`,
       html: disputeCreatedEmail(name, chatUrl, subject),
+      from: "support",
+      replyTo: "support",
     });
 
     return NextResponse.json({ success: true, chatUrl });

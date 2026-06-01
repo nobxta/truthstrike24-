@@ -1,5 +1,22 @@
 import nodemailer from "nodemailer";
 
+/**
+ * Email helper with multi-sender support.
+ *
+ * Authentication is always via SMTP_USER (e.g. admin@truthstrike24.com),
+ * but the visible "From" address can be one of several role addresses:
+ *
+ *   contact@      — general inbound/contact form
+ *   news@         — newsletter, article updates
+ *   support@      — dispute chats, customer support replies
+ *   no-reply@     — automated notifications (default)
+ *   alert@        — security/account alerts
+ *   promotion@    — marketing/announcements
+ *
+ * The SMTP server (Spacemail) must have all these aliases set up to forward
+ * to the same mailbox, OR allow sending as them from the authenticated account.
+ */
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT) || 465,
@@ -10,19 +27,63 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+export type SenderRole =
+  | "contact"
+  | "news"
+  | "support"
+  | "no-reply"
+  | "alert"
+  | "promotion";
+
+const ROLE_NAMES: Record<SenderRole, string> = {
+  contact: "TruthStrike24 Contact",
+  news: "TruthStrike24 News",
+  support: "TruthStrike24 Support",
+  "no-reply": "TruthStrike24",
+  alert: "TruthStrike24 Alert",
+  promotion: "TruthStrike24 Updates",
+};
+
+/** Domain extracted from SMTP_USER (e.g. "truthstrike24.com" from "admin@truthstrike24.com") */
+function getDomain(): string {
+  const user = process.env.SMTP_USER || "";
+  const at = user.indexOf("@");
+  return at >= 0 ? user.slice(at + 1) : "truthstrike24.com";
+}
+
+/** Build the "From" header string for a given role */
+function fromHeader(role: SenderRole): string {
+  const domain = getDomain();
+  const address = `${role}@${domain}`;
+  const name = ROLE_NAMES[role];
+  return `"${name}" <${address}>`;
+}
+
 interface SendEmailParams {
   to: string;
   subject: string;
   html: string;
+  /** Which role-based address to send AS (defaults to "no-reply") */
+  from?: SenderRole;
+  /** If different from "from", set the reply-to header (e.g. for support → reply to support@) */
+  replyTo?: SenderRole;
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailParams): Promise<boolean> {
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  from = "no-reply",
+  replyTo,
+}: SendEmailParams): Promise<boolean> {
   try {
+    const domain = getDomain();
     await transporter.sendMail({
-      from: `"TruthStrike24" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      from: fromHeader(from),
       to,
       subject,
       html,
+      ...(replyTo && { replyTo: `${replyTo}@${domain}` }),
     });
     return true;
   } catch (error) {
@@ -31,7 +92,13 @@ export async function sendEmail({ to, subject, html }: SendEmailParams): Promise
   }
 }
 
-export function disputeCreatedEmail(name: string, chatUrl: string, subject: string): string {
+/* ─── Email templates ─── */
+
+export function disputeCreatedEmail(
+  name: string,
+  chatUrl: string,
+  subject: string
+): string {
   return `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px; background: #0a0a0a; color: #d4d4d4;">
       <div style="text-align: center; margin-bottom: 32px;">

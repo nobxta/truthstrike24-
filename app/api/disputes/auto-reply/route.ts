@@ -145,6 +145,8 @@ Write your follow-up reply now:`;
             to: dispute.email,
             subject: `Update on: ${dispute.subject}`,
             html: adminRepliedEmail(dispute.name, chatUrl),
+            from: "support",
+            replyTo: "support",
           });
 
           repliedCount++;
