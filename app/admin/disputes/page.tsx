@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db";
 import { MessageSquare } from "lucide-react";
 import Link from "next/link";
 
+// Always re-fetch on every request — never cache this admin list
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function DisputesPage() {
   const disputes = await prisma.disputeChat.findMany({
     orderBy: { updatedAt: "desc" },
