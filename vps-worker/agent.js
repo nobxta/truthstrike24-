@@ -807,8 +807,32 @@ async function loop() {
   console.log(`\n🟢 Worker started. Polling DB every 60s for cron + every 5s for manual jobs.`);
   console.log(`   Toggle the Active switch in frontend admin to pause/resume.\n`);
 
-  // On startup, ALWAYS try one run (good for testing visibility)
-  await runAgent();
+  // On startup: report status, but DO NOT generate immediately.
+  // The main loop below will check the interval and only post when due.
+  try {
+    const settings = await prisma.agentSettings.findUnique({
+      where: { id: "singleton" },
+    });
+    if (settings?.enabled) {
+      const intervalMin = Math.max(1, settings.postIntervalMinutes || 60);
+      const lastPostMs = await getLastAgentPostTime();
+      if (lastPostMs === 0) {
+        console.log(`   (No previous posts found — first article will be generated on next tick)\n`);
+      } else {
+        const elapsedMin = (Date.now() - lastPostMs) / 60000;
+        const remaining = intervalMin - elapsedMin;
+        if (remaining <= 0) {
+          console.log(`   ⚡ Last post was ${elapsedMin.toFixed(1)}min ago (>${intervalMin}min interval). Will generate on next tick.\n`);
+        } else {
+          console.log(`   ⏰ Next post in ${remaining.toFixed(1)}min · interval=${intervalMin}min\n`);
+        }
+      }
+    } else {
+      console.log(`   ⏸  Agent currently paused. Toggle ON in admin to resume.\n`);
+    }
+  } catch (e) {
+    console.error(`   ⚠ Could not read settings on startup: ${e.message}\n`);
+  }
 
   // Independent job-processing loop (runs in parallel with cron loop)
   // Polls every 5s for pending generation jobs from the frontend.
