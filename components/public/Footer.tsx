@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Mail, Globe, Newspaper, ChevronRight } from "lucide-react";
+import { Mail, Globe, ChevronRight } from "lucide-react";
+import NewsletterSignup from "./NewsletterSignup";
 
 const LOGO_URL =
   process.env.NEXT_PUBLIC_LOGO_URL ||
@@ -62,23 +63,24 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Contact */}
+          {/* Newsletter signup */}
           <div className="md:col-span-4">
-            <h4 className="text-[11px] font-bold text-white/40 uppercase tracking-[0.12em] mb-5">
-              Get in Touch
-            </h4>
-            <ul className="space-y-3.5 text-sm">
+            <NewsletterSignup
+              source="footer"
+              variant="footer"
+              heading="Newsletter"
+              description="Subscribe for breaking stories and investigations. No spam — ever."
+            />
+            <ul className="space-y-2.5 text-sm mt-6">
               <li className="flex items-center gap-3">
-                <Mail size={14} className="text-gray-500 shrink-0" />
-                <span>contact@truthstrike24.com</span>
+                <Mail size={13} className="text-gray-500 shrink-0" />
+                <a href="mailto:contact@truthstrike24.com" className="text-gray-500 hover:text-white transition-colors">
+                  contact@truthstrike24.com
+                </a>
               </li>
               <li className="flex items-center gap-3">
-                <Globe size={14} className="text-gray-500 shrink-0" />
-                <span>truthstrike24.com</span>
-              </li>
-              <li className="flex items-center gap-3">
-                <Newspaper size={14} className="text-gray-500 shrink-0" />
-                <span>Independent Journalism</span>
+                <Globe size={13} className="text-gray-500 shrink-0" />
+                <span className="text-gray-500">truthstrike24.com</span>
               </li>
             </ul>
           </div>

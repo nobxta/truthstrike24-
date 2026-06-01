@@ -105,6 +105,23 @@ model AgentLog {
   error     String?
 }
 
+// ─── Newsletter Subscribers ───
+model NewsletterSubscriber {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  source       String   @default("footer") // "footer" | "popup" | "sidebar" | etc
+  status       String   @default("active") // "active" | "unsubscribed" | "bounced"
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  unsubToken   String   @unique @default(cuid())
+
+  @@index([status, createdAt])
+  @@index([email])
+}
+
 model AIUsage {
   id            String   @id @default(cuid())
   provider      String   // "anthropic" | "openai" | "groq"

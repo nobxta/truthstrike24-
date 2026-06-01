@@ -16,6 +16,7 @@ import {
   LogOut,
   Palette,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 
 const navItems = [
@@ -27,6 +28,7 @@ const navItems = [
   { label: "Authors", href: "/admin/authors", icon: Users },
   { label: "Custom Pages", href: "/admin/custom-pages", icon: Palette },
   { label: "Disputes", href: "/admin/disputes", icon: MessageSquare },
+  { label: "Newsletter", href: "/admin/newsletter", icon: Mail },
   { label: "Agent Settings", href: "/admin/agent-settings", icon: Bot },
   { label: "Site Settings", href: "/admin/settings", icon: Settings },
 ];
