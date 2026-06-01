@@ -127,8 +127,7 @@ export const metadata: Metadata = {
     shortcut: DEFAULT_OG_IMAGE,
   },
   verification: {
-    // Add when you verify ownership:
-    // google: "your-google-verification-code",
+    google: "googlec44898a9d33589c0",
     // yandex: "your-yandex-verification-code",
     // other: { "msvalidate.01": "your-bing-verification-code" }
   },

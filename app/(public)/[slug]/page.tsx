@@ -50,6 +50,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ? post.keywords.split(",").map((k) => k.trim()).filter(Boolean)
     : undefined;
 
+  // Use the article's featured image if present, otherwise generate
+  // a branded preview image via /api/og at request time.
+  const siteUrlMeta =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.truthstrike24.com";
+  const fallbackOg = `${siteUrlMeta}/api/og?title=${encodeURIComponent(
+    post.title
+  )}&category=${encodeURIComponent(post.category?.name || "News")}&date=${encodeURIComponent(
+    post.publishedAt?.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }) || ""
+  )}`;
+  const ogImage = post.featuredImage || fallbackOg;
+
   return {
     title: fullTitle,
     description,
@@ -59,9 +74,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: post.seoTitle || post.title,
       description,
-      images: post.featuredImage
-        ? [{ url: post.featuredImage, width: 1200, height: 630, alt: post.title }]
-        : [],
+      images: [
+        {
+          url: ogImage,
+          width: 1200,
+          height: 630,
+          alt: post.title,
+        },
+      ],
       type: "article",
       publishedTime: post.publishedAt?.toISOString(),
       modifiedTime: post.updatedAt?.toISOString(),
@@ -74,7 +94,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: "summary_large_image",
       title: post.seoTitle || post.title,
       description,
-      images: post.featuredImage ? [post.featuredImage] : [],
+      images: [ogImage],
     },
     alternates: {
       canonical: `/${params.slug}`,
@@ -157,7 +177,38 @@ export default async function ArticlePage({ params }: Props) {
     post.publishedAt?.toISOString() || post.createdAt.toISOString();
 
   // JSON-LD structured data (Article schema) for Google rich results
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://truthstrike24.vercel.app";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.truthstrike24.com";
+
+  // Breadcrumb schema — shown in Google search results as a path
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: siteUrl,
+      },
+      ...(post.category
+        ? [
+            {
+              "@type": "ListItem",
+              position: 2,
+              name: post.category.name,
+              item: `${siteUrl}/category/${post.category.slug}`,
+            },
+          ]
+        : []),
+      {
+        "@type": "ListItem",
+        position: post.category ? 3 : 2,
+        name: post.title,
+        item: `${siteUrl}/${params.slug}`,
+      },
+    ],
+  };
+
   const articleSchema = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
@@ -194,6 +245,11 @@ export default async function ArticlePage({ params }: Props) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
+      {/* BreadcrumbList — shown as Home › Category › Article in Google */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
       <ReadingProgress />
 

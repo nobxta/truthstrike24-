@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
+import { pingIndexNow } from "@/lib/indexnow";
 
 export async function GET(req: NextRequest) {
   try {
@@ -126,6 +127,11 @@ export async function POST(req: NextRequest) {
         category: { select: { name: true } },
       },
     });
+
+    // Fire-and-forget IndexNow ping (instant Bing/Yandex indexing)
+    if (post.status === "published") {
+      pingIndexNow(`/${post.slug}`).catch(() => {});
+    }
 
     return NextResponse.json(post, { status: 201 });
   } catch (error) {

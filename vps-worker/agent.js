@@ -124,6 +124,40 @@ async function callGroq(model, systemPrompt, userMessage) {
   };
 }
 
+/* ─── IndexNow ping (instant Bing/Yandex indexing) ─── */
+
+const INDEXNOW_KEY = process.env.INDEXNOW_KEY || "a2b1d92cfba9ba4089e8a73f17ebf5ef";
+const SITE_HOST = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.truthstrike24.com").host;
+  } catch {
+    return "www.truthstrike24.com";
+  }
+})();
+
+async function pingIndexNow(url) {
+  try {
+    const fullUrl = url.startsWith("http") ? url : `https://${SITE_HOST}${url.startsWith("/") ? url : `/${url}`}`;
+    const res = await fetch("https://api.indexnow.org/IndexNow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        host: SITE_HOST,
+        key: INDEXNOW_KEY,
+        keyLocation: `https://${SITE_HOST}/${INDEXNOW_KEY}.txt`,
+        urlList: [fullUrl],
+      }),
+    });
+    if (res.ok || res.status === 202) {
+      console.log(`   📨 IndexNow ✓ ${fullUrl}`);
+    } else {
+      console.warn(`   📨 IndexNow ${res.status}`);
+    }
+  } catch (err) {
+    console.error(`   📨 IndexNow error: ${err.message}`);
+  }
+}
+
 /* ─── WaveSpeed image gen ─── */
 
 async function generateImage(model, prompt) {
@@ -443,6 +477,9 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
     await prisma.agentLog.create({
       data: { model, status: "success", title: post.title },
     });
+
+    // Instant Bing/Yandex indexing
+    await pingIndexNow(`/${post.slug}`);
 
     /* Log usage */
     if (aiResult.inputTokens > 0) {
