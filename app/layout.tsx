@@ -131,8 +131,17 @@ export const metadata: Metadata = {
     // yandex: "your-yandex-verification-code",
     // other: { "msvalidate.01": "your-bing-verification-code" }
   },
+  appleWebApp: {
+    capable: true,
+    title: "TruthStrike24",
+    statusBarStyle: "black-translucent",
+  },
   other: {
     "format-detection": "telephone=no",
+    "apple-mobile-web-app-capable": "yes",
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-title": "TruthStrike24",
   },
 };
 
@@ -227,6 +236,11 @@ export default function RootLayout({
           title={`${SITE_NAME} RSS Feed`}
           href="/rss.xml"
         />
+
+        {/* PWA + iOS install support */}
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" href={DEFAULT_OG_IMAGE} />
+        <link rel="apple-touch-icon" sizes="180x180" href={DEFAULT_OG_IMAGE} />
 
         {/* Theme color for mobile browser chrome */}
         <meta name="theme-color" content="#dc2626" media="(prefers-color-scheme: light)" />
