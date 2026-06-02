@@ -12,18 +12,24 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 type FromRole = Extract<SenderRole, "news" | "promotion" | "alert">;
+type Theme = "classic" | "minimal" | "alert" | "magazine";
 
 interface SendBody {
   subject?: string;
   preHeader?: string;
   html?: string;
   fromRole?: FromRole;
+  theme?: Theme;
   testMode?: boolean;
   includeLatestArticles?: boolean;
 }
 
 function isFromRole(v: unknown): v is FromRole {
   return v === "news" || v === "promotion" || v === "alert";
+}
+
+function isTheme(v: unknown): v is Theme {
+  return v === "classic" || v === "minimal" || v === "alert" || v === "magazine";
 }
 
 export async function POST(req: NextRequest) {
@@ -41,6 +47,7 @@ export async function POST(req: NextRequest) {
     const html = body.html?.trim() ?? "";
     const preHeader = body.preHeader?.trim() ?? "";
     const fromRole: FromRole = isFromRole(body.fromRole) ? body.fromRole : "news";
+    const theme: Theme = isTheme(body.theme) ? body.theme : "classic";
     const testMode = Boolean(body.testMode);
     const includeLatestArticles = Boolean(body.includeLatestArticles);
 
@@ -103,6 +110,7 @@ export async function POST(req: NextRequest) {
             unsubUrl,
             latestArticlesHtml,
             siteUrl,
+            theme,
           });
           return sendEmail({
             to: r.email,
