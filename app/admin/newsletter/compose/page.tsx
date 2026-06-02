@@ -16,8 +16,12 @@ import {
   Palette,
   Flame,
   Newspaper,
-  Megaphone,
+  Wand2,
 } from "lucide-react";
+
+const LOGO_URL =
+  process.env.NEXT_PUBLIC_LOGO_URL ||
+  "https://res.cloudinary.com/dumhqc5k6/image/upload/f_auto,q_auto/v1780221602/ChatGPT_Image_May_31_2026_03_29_40_PM_sgjcd2.png";
 import TopBar from "@/components/admin/TopBar";
 import TiptapEditor from "@/components/admin/TiptapEditor";
 
@@ -92,6 +96,14 @@ export default function ComposePage() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiInstruction, setAiInstruction] = useState("");
 
+  // AI Compose (generate full newsletter from a brief)
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeBusy, setComposeBusy] = useState(false);
+  const [composeBrief, setComposeBrief] = useState("");
+  const [composeIncludeLatest, setComposeIncludeLatest] = useState(true);
+  const [composeAutoTheme, setComposeAutoTheme] = useState(true);
+  const [lastReasoning, setLastReasoning] = useState("");
+
   useEffect(() => {
     fetch("/api/newsletter?status=active")
       .then((r) => r.json())
@@ -138,6 +150,46 @@ export default function ComposePage() {
     },
     [subject, preHeader, html, showToast]
   );
+
+  /* ── AI Compose (full email from a brief) ── */
+  const runCompose = useCallback(async () => {
+    if (composeBrief.trim().length < 10) {
+      showToast({ type: "error", text: "Brief is too short" });
+      return;
+    }
+    setComposeBusy(true);
+    try {
+      const res = await fetch("/api/newsletter/ai-compose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brief: composeBrief,
+          includeLatest: composeIncludeLatest,
+          preferredTheme: composeAutoTheme ? undefined : theme,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast({ type: "error", text: data.error || "AI compose failed" });
+        return;
+      }
+      setSubject(data.subject || "");
+      setPreHeader(data.preHeader || "");
+      setHtml(data.html || "");
+      if (data.theme) setTheme(data.theme);
+      setLastReasoning(data.reasoning || "");
+      setComposeOpen(false);
+      setComposeBrief("");
+      showToast({
+        type: "success",
+        text: `Composed! Theme: ${data.theme || "classic"}`,
+      });
+    } catch {
+      showToast({ type: "error", text: "Network error" });
+    } finally {
+      setComposeBusy(false);
+    }
+  }, [composeBrief, composeIncludeLatest, composeAutoTheme, theme, showToast]);
 
   const send = useCallback(
     async (isTest: boolean) => {
@@ -213,6 +265,33 @@ export default function ComposePage() {
       )}
 
       <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+        {/* ─── AI Compose banner ─── */}
+        <div className="mb-5 relative overflow-hidden rounded-xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 p-5 text-white shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between relative z-10">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0">
+                <Wand2 size={22} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold">Compose with AI</h3>
+                <p className="text-xs text-white/85 leading-tight mt-0.5">
+                  Describe what you want — AI picks the theme, writes the subject, body, callouts, headings & links the logo.
+                </p>
+                {lastReasoning && (
+                  <p className="text-[11px] text-white/75 italic mt-1">&ldquo;{lastReasoning}&rdquo;</p>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setComposeOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-lg bg-white text-violet-700 hover:bg-violet-50 shrink-0"
+            >
+              <Sparkles size={14} /> Generate Email
+            </button>
+          </div>
+        </div>
+
         {/* ─── Theme Picker ─── */}
         <div className="mb-5 bg-white border border-gray-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -419,6 +498,90 @@ export default function ComposePage() {
         </div>
       </div>
 
+      {/* AI Compose modal */}
+      {composeOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-xl w-full overflow-hidden">
+            <div className="px-5 py-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wand2 size={18} />
+                <h3 className="text-base font-bold">AI Compose Newsletter</h3>
+              </div>
+              <button
+                onClick={() => setComposeOpen(false)}
+                disabled={composeBusy}
+                className="p-1 text-white/80 hover:text-white disabled:opacity-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-4">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-600 mb-1">
+                What should this newsletter be about?
+              </label>
+              <textarea
+                value={composeBrief}
+                onChange={(e) => setComposeBrief(e.target.value)}
+                rows={5}
+                placeholder="e.g. Breaking alert: BlockLender just exit-scammed with $4.2M. Cover the timeline, victim count, on-chain trail, and link to our investigation. Urgent tone."
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 resize-none"
+                disabled={composeBusy}
+              />
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                AI generates subject + pre-header + full styled HTML body with headings, bold accents, callouts & CTA buttons. Brand logo is embedded automatically.
+              </p>
+
+              <div className="mt-4 space-y-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={composeIncludeLatest}
+                    onChange={(e) => setComposeIncludeLatest(e.target.checked)}
+                    disabled={composeBusy}
+                    className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  Feed AI your latest 5 published articles (so it can reference them)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={composeAutoTheme}
+                    onChange={(e) => setComposeAutoTheme(e.target.checked)}
+                    disabled={composeBusy}
+                    className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                  />
+                  Let AI auto-pick the best theme (otherwise use {theme})
+                </label>
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setComposeOpen(false)}
+                disabled={composeBusy}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={runCompose}
+                disabled={composeBusy || composeBrief.trim().length < 10}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {composeBusy ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> AI is thinking…
+                  </>
+                ) : (
+                  <>
+                    <Wand2 size={14} /> Generate
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AI Rewrite modal */}
       {aiOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
@@ -569,11 +732,14 @@ function buildPreview(args: {
 
   let inner = "";
 
+  const logoInverted = `<img src="${LOGO_URL}" alt="TruthStrike24" width="240" style="height:auto;max-width:240px;display:block;margin:0 auto;filter:brightness(0) invert(1);" />`;
+  const logoPlain = `<img src="${LOGO_URL}" alt="TruthStrike24" width="240" style="height:auto;max-width:240px;display:block;margin:0 auto;" />`;
+
   if (theme === "classic") {
     inner = `
-    <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 32px 24px; border-radius: 16px 16px 0 0; text-align: center;">
-      <h1 style="color: #ffffff; font-size: 26px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">TruthStrike24</h1>
-      <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin: 6px 0 0; font-weight: 500;">Breaking news, delivered.</p>
+    <div style="background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); padding: 36px 24px 32px; border-radius: 16px 16px 0 0; text-align: center;">
+      ${logoInverted}
+      <p style="color: rgba(255,255,255,0.85); font-size: 12px; margin: 12px 0 0; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;">Breaking news, delivered</p>
     </div>
     <div style="background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px; padding: 32px;">
       <div style="color:#1f2937;font-size:15px;line-height:1.65;">${bodyHtml}</div>
@@ -582,18 +748,22 @@ function buildPreview(args: {
     </div>`;
   } else if (theme === "minimal") {
     inner = `
-    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 36px 32px;">
-      <h1 style="color: #111827; font-size: 22px; margin: 0 0 8px; font-weight: 800; letter-spacing: -0.5px;">TruthStrike24</h1>
-      <p style="color: #6b7280; font-size: 12px; margin: 0 0 28px; border-bottom: 1px solid #f3f4f6; padding-bottom: 18px;">Independent investigative journalism</p>
-      <div style="color:#1f2937;font-size:15px;line-height:1.7;">${bodyHtml}</div>
-      ${latestBlock("#111827")}
-      ${footerHtml("#374151", year)}
+    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden;">
+      <div style="padding: 32px 32px 24px; border-bottom: 1px solid #f3f4f6; text-align: center;">
+        <img src="${LOGO_URL}" alt="TruthStrike24" width="200" style="height:auto;max-width:200px;display:block;margin:0 auto 8px;" />
+        <p style="color: #6b7280; font-size: 11px; margin: 0; font-weight: 500; letter-spacing: 2px; text-transform: uppercase;">Independent Investigative Journalism</p>
+      </div>
+      <div style="padding: 32px;">
+        <div style="color:#1f2937;font-size:15px;line-height:1.7;">${bodyHtml}</div>
+        ${latestBlock("#111827")}
+        ${footerHtml("#374151", year)}
+      </div>
     </div>`;
   } else if (theme === "alert") {
     inner = `
-    <div style="background: #0a0a0a; padding: 24px; border-radius: 16px 16px 0 0; text-align: center; border-bottom: 4px solid #ef4444;">
-      <div style="display:inline-block;background:#ef4444;color:#fff;padding:4px 12px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:2px;margin-bottom:12px;">BREAKING NEWS</div>
-      <h1 style="color: #ffffff; font-size: 24px; margin: 0; font-weight: 900; letter-spacing: -0.5px;">TruthStrike24 Alert</h1>
+    <div style="background: #0a0a0a; padding: 28px 24px; border-radius: 16px 16px 0 0; text-align: center; border-bottom: 4px solid #ef4444;">
+      <div style="display:inline-block;background:#ef4444;color:#fff;padding:5px 14px;border-radius:4px;font-size:10px;font-weight:800;letter-spacing:3px;margin-bottom:14px;">⚠ BREAKING NEWS</div>
+      <img src="${LOGO_URL}" alt="TruthStrike24" width="220" style="height:auto;max-width:220px;display:block;margin:0 auto;filter:brightness(0) invert(1);" />
     </div>
     <div style="background: #ffffff; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px; padding: 32px;">
       <div style="color:#1f2937;font-size:15px;line-height:1.65;">${bodyHtml}</div>
@@ -603,13 +773,13 @@ function buildPreview(args: {
   } else {
     // magazine
     inner = `
-    <div style="background: #fef9f3; padding: 36px 32px; border-radius: 16px 16px 0 0; text-align: center; border-bottom: 1px solid #f5e6d3;">
-      <p style="color: #92400e; font-size: 11px; margin: 0 0 8px; font-weight: 700; letter-spacing: 4px;">ISSUE · ${year}</p>
-      <h1 style="color: #7c2d12; font-family: Georgia, 'Times New Roman', serif; font-size: 30px; margin: 0; font-weight: 700; letter-spacing: -0.5px;">TruthStrike24</h1>
-      <p style="color: #a16207; font-style: italic; font-size: 13px; margin: 8px 0 0;">Investigations &middot; Analysis &middot; Truth</p>
+    <div style="background: linear-gradient(135deg, #fef9f3 0%, #fef3e7 100%); padding: 40px 32px 32px; border-radius: 16px 16px 0 0; text-align: center; border-bottom: 1px solid #f5e6d3;">
+      <p style="color: #92400e; font-size: 10px; margin: 0 0 10px; font-weight: 700; letter-spacing: 5px;">— ISSUE · ${year} —</p>
+      ${logoPlain}
+      <p style="color: #a16207; font-style: italic; font-size: 13px; margin: 12px 0 0; font-family: Georgia, 'Times New Roman', serif;">Investigations &middot; Analysis &middot; Truth</p>
     </div>
-    <div style="background: #ffffff; border: 1px solid #f5e6d3; border-top: none; border-radius: 0 0 16px 16px; padding: 36px 32px;">
-      <div style="color:#1f2937;font-size:16px;line-height:1.7;font-family:Georgia,'Times New Roman',serif;">${bodyHtml}</div>
+    <div style="background: #ffffff; border: 1px solid #f5e6d3; border-top: none; border-radius: 0 0 16px 16px; padding: 40px 32px;">
+      <div style="color:#1f2937;font-size:16px;line-height:1.75;font-family:Georgia,'Times New Roman',serif;">${bodyHtml}</div>
       ${latestBlock("#7c2d12")}
       ${footerHtml("#7c2d12", year)}
     </div>`;

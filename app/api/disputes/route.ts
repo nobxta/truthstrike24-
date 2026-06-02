@@ -3,18 +3,35 @@ import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { sendEmail, disputeCreatedEmail } from "@/lib/email";
+import { checkRateLimit, getClientIp, isHoneypotTripped } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, name, subject, description, customPageId, customPageSlug } = body as {
+    const { email, name, subject, description, customPageId, customPageSlug, website } = body as {
       email: string;
       name: string;
       subject: string;
       description: string;
       customPageId?: string;
       customPageSlug?: string;
+      website?: string;
     };
+
+    if (isHoneypotTripped(website)) {
+      return NextResponse.json({ success: true, chatUrl: "" });
+    }
+
+    const ip = getClientIp(req);
+    const rl = await checkRateLimit(`dispute:${ip}`, 5, 3600);
+    if (!rl.ok) {
+      return NextResponse.json(
+        {
+          error: `Too many submissions. Try again in ${Math.ceil(rl.resetInSec / 60)} minutes.`,
+        },
+        { status: 429, headers: { "Retry-After": String(rl.resetInSec) } }
+      );
+    }
 
     if (!email || !name || !subject || !description) {
       return NextResponse.json(
@@ -23,12 +40,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const ua = req.headers.get("user-agent")?.slice(0, 500) ?? null;
+
     const chat = await prisma.disputeChat.create({
       data: {
         email,
         name,
         subject,
         description,
+        ipAddress: ip,
+        userAgent: ua,
         customPageId: customPageId || null,
         customPageSlug: customPageSlug || "",
         messages: {

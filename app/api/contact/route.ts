@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendEmail } from "@/lib/email";
+import { checkRateLimit, getClientIp, isHoneypotTripped } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ interface ContactBody {
   email?: string;
   subject?: string;
   message?: string;
+  website?: string; // honeypot
 }
 
 function escapeHtml(s: string): string {
@@ -24,6 +26,22 @@ function escapeHtml(s: string): string {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ContactBody;
+
+    if (isHoneypotTripped(body.website)) {
+      return NextResponse.json({ success: true });
+    }
+
+    const ipForLimit = getClientIp(req);
+    const rl = await checkRateLimit(`contact:${ipForLimit}`, 5, 3600);
+    if (!rl.ok) {
+      return NextResponse.json(
+        {
+          error: `Too many messages. Try again in ${Math.ceil(rl.resetInSec / 60)} minutes.`,
+        },
+        { status: 429, headers: { "Retry-After": String(rl.resetInSec) } }
+      );
+    }
+
     const name = body.name?.trim() ?? "";
     const email = body.email?.trim().toLowerCase() ?? "";
     const subject = body.subject?.trim() ?? "";

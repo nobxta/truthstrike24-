@@ -3,9 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { sendEmail, type SenderRole } from "@/lib/email";
+import { logError } from "@/lib/error-log";
 import {
   renderNewsletterEmail,
   renderLatestArticlesBlock,
+  rewriteLinksForTracking,
+  openPixelHtml,
 } from "@/lib/newsletter-template";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +96,20 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Create campaign row UP FRONT so we have an id for link/open tracking
+    const campaign = await prisma.newsletterCampaign.create({
+      data: {
+        subject,
+        preHeader,
+        html,
+        fromRole,
+        sentToCount: 0,
+        failedCount: 0,
+        testMode,
+        createdById: sessionUser.id,
+      },
+    });
+
     let sentToCount = 0;
     let failedCount = 0;
 
@@ -103,12 +120,19 @@ export async function POST(req: NextRequest) {
       const results = await Promise.all(
         batch.map((r) => {
           const unsubUrl = `${siteUrl}/unsubscribe/${r.unsubToken}`;
+          // Wrap links + append open-pixel — per-recipient so we can attribute
+          const trackedBody =
+            rewriteLinksForTracking(html, siteUrl, campaign.id, r.email, unsubUrl) +
+            openPixelHtml(siteUrl, campaign.id, r.email);
+          const trackedLatest = latestArticlesHtml
+            ? rewriteLinksForTracking(latestArticlesHtml, siteUrl, campaign.id, r.email, unsubUrl)
+            : "";
           const wrapped = renderNewsletterEmail({
             subject,
             preHeader,
-            bodyHtml: html,
+            bodyHtml: trackedBody,
             unsubUrl,
-            latestArticlesHtml,
+            latestArticlesHtml: trackedLatest,
             siteUrl,
             theme,
           });
@@ -127,18 +151,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Save campaign record
-    const campaign = await prisma.newsletterCampaign.create({
-      data: {
-        subject,
-        preHeader,
-        html,
-        fromRole,
-        sentToCount,
-        failedCount,
-        testMode,
-        createdById: sessionUser.id,
-      },
+    // Update final counts
+    await prisma.newsletterCampaign.update({
+      where: { id: campaign.id },
+      data: { sentToCount, failedCount },
     });
 
     return NextResponse.json({
@@ -149,6 +165,7 @@ export async function POST(req: NextRequest) {
       totalRecipients: recipients.length,
     });
   } catch (error) {
+    await logError({ source: "newsletter", route: "/api/newsletter/send", error, severity: "fatal" });
     const msg = error instanceof Error ? error.message : "Failed";
     console.error("[newsletter send]", error);
     return NextResponse.json({ error: msg }, { status: 500 });

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
 import { pingIndexNow } from "@/lib/indexnow";
 import { sendPushToAll } from "@/lib/push";
+import { logError } from "@/lib/error-log";
 
 export async function GET(req: NextRequest) {
   try {
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(post, { status: 201 });
   } catch (error) {
+    await logError({ source: "api", route: "/api/posts", error });
     const message =
       error instanceof Error ? error.message : "Failed to create post";
     return NextResponse.json({ error: message }, { status: 500 });

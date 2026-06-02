@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         wordLimit: 1200, // longer outputs for full pages
         provider: body.provider ?? "anthropic",
         model: body.model ?? "claude-sonnet-4-6",
-        useWebSearch: body.useWebSearch ?? false,
+        useWebSearch: body.useWebSearch ?? true,
         generateImage: body.generateImage ?? true,
         imageModel: body.imageModel ?? "wavespeed-ai/flux-schnell",
       },

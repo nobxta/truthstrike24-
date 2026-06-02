@@ -845,11 +845,16 @@ export default function AgentSettingsPage() {
                   <textarea
                     value={s.topicFocus}
                     onChange={(e) => up("topicFocus", e.target.value)}
-                    rows={2}
+                    rows={3}
                     className="w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none placeholder-gray-400"
-                    placeholder="e.g. Indian news, politics, sports..."
+                    placeholder="crypto scams 2026, staking fraud latest, exchange hacks this week, DeFi rug pulls, NFT phishing, AI investment scams, fake ICO alerts"
                   />
-                  <p className="text-[11px] text-gray-400 mt-1">Comma-separated list of topics.</p>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+                    Comma-separated topics. Each post AI picks ONE at random — more topics = more variety.
+                    Add &ldquo;2026&rdquo; / &ldquo;latest&rdquo; / &ldquo;this week&rdquo; in topic names to push AI toward current news.
+                    Last 20 published titles are auto-fed to AI so it won&rsquo;t repeat itself.
+                    Turn ON <strong>Web Search</strong> below so AI researches real recent stories instead of inventing.
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

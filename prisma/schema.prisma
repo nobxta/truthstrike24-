@@ -55,6 +55,7 @@ model Post {
   tags            PostTag[]
   isAgentPost     Boolean   @default(false)
   isBreaking      Boolean   @default(false)
+  isPinned        Boolean   @default(false)
   imagePrompt     String?   @db.Text
   imageStatus     String    @default("none") // "none" | "pending" | "done" | "failed"
   keywords        String    @default("") // comma-separated SEO keywords for tagging
@@ -186,7 +187,23 @@ model NewsletterCampaign {
   testMode      Boolean  @default(false)
   createdById   String
   createdAt     DateTime @default(now())
+  events        NewsletterEvent[]
 
+  @@index([createdAt])
+}
+
+model NewsletterEvent {
+  id          String              @id @default(cuid())
+  campaignId  String
+  campaign    NewsletterCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  type        String              // "open" | "click"
+  email       String?
+  url         String?             // populated for clicks
+  ip          String?
+  userAgent   String?             @db.Text
+  createdAt   DateTime            @default(now())
+
+  @@index([campaignId, type])
   @@index([createdAt])
 }
 
@@ -278,8 +295,33 @@ model DisputeChat {
   customPageSlug String   @default("")
   status         String   @default("open")
   messages       DisputeMessage[]
+  ipAddress      String?
+  userAgent      String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+model RateLimit {
+  key         String   @id
+  count       Int      @default(1)
+  windowStart DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ErrorLog {
+  id          String   @id @default(cuid())
+  source      String   // "api" | "worker" | "newsletter" | "push" | "ai" | "other"
+  route       String?  // e.g. "/api/posts" or "vps-worker/agent.js"
+  message     String   @db.Text
+  stack       String?  @db.Text
+  severity    String   @default("error") // "warn" | "error" | "fatal"
+  metadata    String?  @db.Text // JSON-stringified extra context
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([source])
+  @@index([resolved])
 }
 
 model DisputeMessage {

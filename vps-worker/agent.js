@@ -124,6 +124,72 @@ async function callGroq(model, systemPrompt, userMessage) {
   };
 }
 
+/* ─── Scheduled-publish promoter ─── */
+
+/**
+ * Promotes any Post with status="scheduled" whose publishedAt time has arrived.
+ * Fires IndexNow ping + push notification for each promoted post (via Vercel
+ * endpoints, same as a fresh auto-post). Called on every cron tick.
+ * Silently no-ops when nothing is due.
+ */
+async function publishDueScheduled() {
+  try {
+    const now = new Date();
+    const due = await prisma.post.findMany({
+      where: {
+        status: "scheduled",
+        publishedAt: { lte: now },
+      },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        summary: true,
+        featuredImage: true,
+      },
+      take: 50,
+    });
+
+    if (due.length === 0) return;
+
+    await prisma.post.updateMany({
+      where: { id: { in: due.map((p) => p.id) } },
+      data: { status: "published" },
+    });
+
+    console.log(`\n[${new Date().toISOString()}] 📅 Promoted ${due.length} scheduled post(s) to published`);
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.truthstrike24.com";
+    const cronSecret = process.env.CRON_SECRET || "";
+
+    for (const p of due) {
+      console.log(`   ↳ ${p.slug}`);
+      await pingIndexNow(`/${p.slug}`);
+
+      if (cronSecret) {
+        try {
+          const res = await fetch(`${siteUrl}/api/push/notify-article`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-cron-secret": cronSecret,
+            },
+            body: JSON.stringify({ postId: p.id }),
+          });
+          if (res.ok) {
+            const j = await res.json();
+            console.log(`     🔔 Push: ${j.sent || 0} sent`);
+          }
+        } catch (err) {
+          console.error(`     🔔 Push error: ${err.message}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[scheduled publish] ${err.message}`);
+  }
+}
+
 /* ─── IndexNow ping (instant Bing/Yandex indexing) ─── */
 
 const INDEXNOW_KEY = process.env.INDEXNOW_KEY || "a2b1d92cfba9ba4089e8a73f17ebf5ef";
@@ -304,8 +370,23 @@ async function runAgent() {
     console.log(`🔎 Web search: ${useWebSearch ? "ON" : "off"}`);
     console.log(`📏 Word limit: ${wordLimit}`);
 
+    /* Anti-duplicate: pull last 20 published titles so AI knows what's been covered */
+    const recentPosts = await prisma.post.findMany({
+      where: { status: "published" },
+      orderBy: { publishedAt: "desc" },
+      take: 20,
+      select: { title: true, slug: true, publishedAt: true },
+    });
+    const recentTitlesBlock =
+      recentPosts.length > 0
+        ? `\n\nALREADY-COVERED STORIES (DO NOT repeat, rephrase, or write the same angle):\n${recentPosts
+            .map((p, i) => `${i + 1}. "${p.title}"`)
+            .join("\n")}\n\nIf your story idea is similar to ANY of the above, pivot to a fresh angle, a different subject, or a brand-new development.`
+        : "";
+
     /* Build prompt (same as Vercel route) */
     const today = new Date().toISOString().split("T")[0];
+    const todayHuman = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
     const minWords = Math.max(200, wordLimit - 100);
     const maxWords = wordLimit + 100;
 
@@ -313,7 +394,10 @@ async function runAgent() {
 
 PRIMARY GOAL: Produce a news article that ranks on Google AND reads like real journalism.
 
-TASK: ${useWebSearch && provider === "anthropic" ? "Use web_search to find a real recent (last 7 days) news story" : "Write a fresh, factual news article from your knowledge"}.
+TODAY IS: ${todayHuman}. Cover news from the LAST 7 DAYS only. Anything older than a week is stale — skip it.
+
+TASK: ${useWebSearch && provider === "anthropic" ? "Use web_search to find a REAL recent (last 7 days) story published this week. Find a specific event, lawsuit, hack, scam exposure, regulatory action, or named incident with verifiable facts." : "Write a fresh, factual news article from your knowledge of recent events. Use named people, specific dollar amounts, exact dates from the last 7 days."}.
+${recentTitlesBlock}
 
 ═══════════════════════════════════════════════════════════════════
 ARTICLE CONTENT RULES
@@ -338,14 +422,17 @@ SEO FIELD RULES — FOLLOW EXACTLY
 ═══════════════════════════════════════════════════════════════════
 
 1. TITLE (the headline shown on the site):
-   - 55-65 characters MAX
+   - MINIMUM 55 characters, target 65-75 characters (NEVER under 50 chars)
    - Contains the PRIMARY KEYWORD at the start
-   - Specific names, numbers, or "How/Why/What" hooks
+   - PACK IT WITH SPECIFICS: names + numbers + dates + dollar amounts
    - Compelling, factual, NOT clickbait
    - Title case
-   - Examples of good: "Federal Judge Blocks $1.8B Trump Anti-Weaponization Fund"
-                       "Apple Q3 Revenue Hits $90.8B Despite iPhone Slump"
-   - Examples of bad: "Big news happens" / "You won't believe what happened"
+   - GOOD (rich, specific, 60-75 chars):
+       "Federal Judge Blocks $1.8B Trump Anti-Weaponization Fund Rollout"
+       "Apple Q3 2026 Revenue Hits $90.8B Despite iPhone Sales Slump"
+       "BlockLender.io Exit Scam: $4.2M Drained from 1,200 Crypto Wallets"
+   - BAD (too short, vague): "Big news happens" / "Apple earnings" / "Crypto scam alert"
+   - If your title comes out under 50 chars, REWRITE IT with more facts
 
 2. SEO TITLE (the <title> tag for Google):
    - 50-60 characters MAX (Google truncates around 60)
@@ -660,11 +747,11 @@ SEO FIELD RULES — FOLLOW EXACTLY
 ═══════════════════════════════════════════════════════════════════
 
 1. TITLE (the headline shown on the site):
-   - 55-65 characters MAX
+   - MINIMUM 55 characters, target 65-75 characters (NEVER under 50)
    - Contains the PRIMARY KEYWORD at the start
-   - Specific names, numbers, or "How/Why/What" hooks
-   - Compelling, factual, NOT clickbait
-   - Title case
+   - PACK IT WITH SPECIFICS: names + numbers + dates + dollar amounts
+   - Compelling, factual, NOT clickbait, title case
+   - If your title comes out under 50 chars, REWRITE IT with more facts
 
 2. SEO TITLE (the <title> tag for Google):
    - 50-60 characters MAX (Google truncates around 60)
@@ -846,7 +933,27 @@ async function processCustomPageJob(job, jobStart) {
     const category = THEME_CATEGORY[job.themeKey] || "investigation";
     const layoutHints = layoutGuidanceFor(category);
 
-    const systemPrompt = `You are a senior content designer creating a polished single-page landing/report site for TruthStrike24.
+    const systemPrompt = `You are a senior investigative writer + SEO specialist + content designer creating a polished single-page report for TruthStrike24.
+
+═══════════════════════════════════════════════════════════════════
+RULE #1 — FOLLOW THE ADMIN'S BRIEF EXACTLY
+═══════════════════════════════════════════════════════════════════
+The brief below is your ASSIGNMENT. Do NOT substitute your own topic.
+- If the brief names a specific person/company/scam/product, you MUST write about THAT exact subject.
+- If the brief gives instructions ("include timeline", "expose this exchange", "compare X vs Y"), FOLLOW them.
+- If the brief is sparse, ${job.useWebSearch && job.provider === "anthropic" ? "USE web_search to research the actual subject and find real names, dates, dollar amounts, victim counts, on-chain evidence, regulatory actions, and quotes." : "USE your knowledge to add real specific details — named people, dates, dollar amounts, statistics. Never write generic filler."}
+- Never write something off-topic just because it's easier.
+
+═══════════════════════════════════════════════════════════════════
+RULE #2 — SEO IS NOT OPTIONAL
+═══════════════════════════════════════════════════════════════════
+This page must rank on Google. Every field below is critical:
+- "metaTitle": 50-60 chars, primary keyword FRONT-LOADED, NO " | TruthStrike24" suffix unless it fits
+- "metaDesc": 150-160 chars, contains the primary keyword in first 100 chars, ends with a hook
+- "keywords": 5-10 lowercase comma-separated head + long-tail keywords this page should rank for
+- "headline": natural-language H1 that includes the primary keyword
+- "slug": 4-7 lowercase hyphenated words with 2-3 keywords (NO articles, NO stopwords)
+- Section H2s (the part after "LABEL|") should each contain a related keyword variation
 
 GOAL: Produce STRICT JSON for a single page. The page uses a "${job.themeKey || "scam-alert"}" theme (category: ${category}).
 
@@ -876,8 +983,9 @@ OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble):
   "ctaText": "Optional CTA button label (or empty string)",
   "ctaUrl": "Optional CTA url (or empty string)",
   "logoUrl": "",
-  "metaTitle": "SEO title under 60 chars",
-  "metaDesc": "Meta description under 155 chars",
+  "metaTitle": "SEO title 50-60 chars, primary keyword front-loaded",
+  "metaDesc": "Meta description 150-160 chars, keyword in first 100 chars, ends with hook",
+  "keywords": "5-10 comma-separated lowercase head + long-tail keywords",
   "heroImagePrompt": "Photojournalism scene for hero — vivid, specific. NO TEXT/LOGOS/WATERMARKS in image.",
   "content": "<p>Optional short intro paragraph shown between hero and sections — can be empty string.</p>",
   "sections": [
@@ -1062,6 +1170,10 @@ async function loop() {
         }
         lastEnabledLogState = settings.enabled;
       }
+
+      // Always check scheduled posts — even when auto-poster is paused, the
+      // admin may have scheduled a manual post that needs publishing on time.
+      await publishDueScheduled();
 
       if (!settings.enabled) {
         // Paused — log heartbeat every 10 minutes so user knows worker is alive

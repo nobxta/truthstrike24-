@@ -21,6 +21,7 @@ export default function NewsletterSignup({
   description = "Subscribe for breaking stories and investigations. No spam — ever.",
 }: Props) {
   const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
 
@@ -33,7 +34,7 @@ export default function NewsletterSignup({
       const res = await fetch("/api/newsletter/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), source }),
+        body: JSON.stringify({ email: email.trim(), source, website }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -60,6 +61,7 @@ export default function NewsletterSignup({
         </div>
         <p className="text-sm text-white/85 mb-5">{description}</p>
         <form onSubmit={submit} className="flex flex-col sm:flex-row gap-2">
+          <Honeypot value={website} onChange={setWebsite} />
           <input
             type="email"
             value={email}
@@ -106,6 +108,7 @@ export default function NewsletterSignup({
   if (variant === "inline") {
     return (
       <form onSubmit={submit} className="space-y-2">
+        <Honeypot value={website} onChange={setWebsite} />
         <div className="flex gap-2">
           <input
             type="email"
@@ -158,6 +161,7 @@ export default function NewsletterSignup({
       </h4>
       <p className="text-sm text-gray-500 mb-3 leading-relaxed">{description}</p>
       <form onSubmit={submit} className="space-y-2">
+        <Honeypot value={website} onChange={setWebsite} />
         <div className="flex gap-2">
           <input
             type="email"
@@ -199,5 +203,21 @@ export default function NewsletterSignup({
         )}
       </form>
     </div>
+  );
+}
+
+/** Invisible honeypot input — bots fill it, humans don't see it. */
+function Honeypot({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="text"
+      name="website"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      tabIndex={-1}
+      autoComplete="off"
+      aria-hidden="true"
+      style={{ position: "absolute", left: "-9999px", opacity: 0, height: 0, width: 0 }}
+    />
   );
 }

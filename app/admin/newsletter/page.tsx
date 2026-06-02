@@ -17,6 +17,10 @@ import {
   PenSquare,
   Send,
   TestTube2,
+  Eye,
+  MousePointerClick,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import TopBar from "@/components/admin/TopBar";
 
@@ -55,6 +59,32 @@ export default function NewsletterPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [expandedCampaign, setExpandedCampaign] = useState<string | null>(null);
+  const [campaignStats, setCampaignStats] = useState<
+    Record<string, { uniqueOpens: number; uniqueClicks: number; openRate: number; clickRate: number; topUrls: { url: string; clicks: number }[] } | "loading">
+  >({});
+
+  const loadCampaignStats = useCallback(async (id: string) => {
+    setCampaignStats((s) => ({ ...s, [id]: "loading" }));
+    try {
+      const res = await fetch(`/api/newsletter/campaigns/${id}`);
+      if (res.ok) {
+        const d = await res.json();
+        setCampaignStats((s) => ({
+          ...s,
+          [id]: {
+            uniqueOpens: d.stats.uniqueOpens,
+            uniqueClicks: d.stats.uniqueClicks,
+            openRate: d.stats.openRate,
+            clickRate: d.stats.clickRate,
+            topUrls: d.topUrls ?? [],
+          },
+        }));
+      }
+    } catch {
+      /* */
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -236,33 +266,76 @@ export default function NewsletterPage() {
               <span className="text-[10px] text-gray-400">Last {campaigns.length}</span>
             </div>
             <div className="divide-y divide-gray-100">
-              {campaigns.map((c) => (
-                <div
-                  key={c.id}
-                  className="px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50"
-                >
-                  <div className="w-7 h-7 rounded-md bg-gradient-to-br from-red-50 to-rose-100 text-red-600 flex items-center justify-center shrink-0">
-                    {c.testMode ? <TestTube2 size={13} /> : <Send size={13} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-gray-900 truncate">
-                      {c.subject}
-                    </p>
-                    <p className="text-[11px] text-gray-500">
-                      {new Date(c.createdAt).toLocaleString()} &middot; from {c.fromRole}@
-                      {c.testMode ? " · test" : ""}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[12px] font-bold text-emerald-600">
-                      {c.sentToCount} sent
-                    </p>
-                    {c.failedCount > 0 && (
-                      <p className="text-[10px] text-red-500">{c.failedCount} failed</p>
+              {campaigns.map((c) => {
+                const isOpen = expandedCampaign === c.id;
+                const stats = campaignStats[c.id];
+                return (
+                  <div key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = isOpen ? null : c.id;
+                        setExpandedCampaign(next);
+                        if (next && !stats) loadCampaignStats(c.id);
+                      }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50 text-left"
+                    >
+                      <div className="w-7 h-7 rounded-md bg-gradient-to-br from-red-50 to-rose-100 text-red-600 flex items-center justify-center shrink-0">
+                        {c.testMode ? <TestTube2 size={13} /> : <Send size={13} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold text-gray-900 truncate">
+                          {c.subject}
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          {new Date(c.createdAt).toLocaleString()} &middot; from {c.fromRole}@
+                          {c.testMode ? " · test" : ""}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[12px] font-bold text-emerald-600">
+                          {c.sentToCount} sent
+                        </p>
+                        {c.failedCount > 0 && (
+                          <p className="text-[10px] text-red-500">{c.failedCount} failed</p>
+                        )}
+                      </div>
+                      {isOpen ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 pb-3 bg-gray-50/70 border-t border-gray-100">
+                        {stats === "loading" || !stats ? (
+                          <p className="text-xs text-gray-500 py-3 flex items-center gap-1.5">
+                            <Loader2 size={12} className="animate-spin" /> Loading stats…
+                          </p>
+                        ) : (
+                          <div className="pt-3 space-y-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              <StatCard icon={<Eye size={12} />} label="Unique opens" value={stats.uniqueOpens} sub={`${stats.openRate}%`} accent="text-blue-600" />
+                              <StatCard icon={<MousePointerClick size={12} />} label="Unique clicks" value={stats.uniqueClicks} sub={`${stats.clickRate}%`} accent="text-violet-600" />
+                              <StatCard icon={<Send size={12} />} label="Delivered" value={c.sentToCount} sub="" accent="text-emerald-600" />
+                              <StatCard icon={<TestTube2 size={12} />} label="Failed" value={c.failedCount} sub="" accent={c.failedCount > 0 ? "text-red-600" : "text-gray-400"} />
+                            </div>
+                            {stats.topUrls.length > 0 && (
+                              <div className="bg-white rounded-lg border border-gray-200 p-2.5">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Top clicked links</p>
+                                <ul className="space-y-1">
+                                  {stats.topUrls.map((u) => (
+                                    <li key={u.url} className="flex items-center justify-between gap-2 text-[11px]">
+                                      <span className="truncate text-gray-700">{u.url}</span>
+                                      <span className="font-bold text-violet-600 shrink-0">{u.clicks}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -378,5 +451,29 @@ export default function NewsletterPage() {
         </p>
       </div>
     </>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  sub: string;
+  accent: string;
+}) {
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-2.5">
+      <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${accent} mb-0.5`}>
+        {icon} {label}
+      </div>
+      <p className="text-lg font-black text-gray-900 leading-none">{value}</p>
+      {sub && <p className="text-[10px] text-gray-500 mt-0.5">{sub}</p>}
+    </div>
   );
 }

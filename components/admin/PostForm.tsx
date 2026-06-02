@@ -51,6 +51,7 @@ interface PostFormProps {
     publishedAt: string | null;
     categoryId: string;
     isBreaking: boolean;
+    isPinned?: boolean;
     tags: { tag: Tag }[];
   };
 }
@@ -72,6 +73,7 @@ export default function PostForm({ categories, tags, post }: PostFormProps) {
     post?.tags.map((t) => t.tag.id) || []
   );
   const [isBreaking, setIsBreaking] = useState(post?.isBreaking || false);
+  const [isPinned, setIsPinned] = useState(post?.isPinned || false);
   const [scheduledDate, setScheduledDate] = useState(
     post?.publishedAt ? new Date(post.publishedAt).toISOString().slice(0, 16) : ""
   );
@@ -165,6 +167,7 @@ export default function PostForm({ categories, tags, post }: PostFormProps) {
       categoryId,
       tagIds: selectedTagIds,
       isBreaking,
+      isPinned,
     };
 
     const url = isEditing ? `/api/posts/${post.id}` : "/api/posts";
@@ -498,6 +501,28 @@ export default function PostForm({ categories, tags, post }: PostFormProps) {
               </label>
               <p className="text-xs text-gray-400 mt-1 ml-7">
                 Show on homepage hero section
+              </p>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <button
+                  type="button"
+                  onClick={() => setIsPinned(!isPinned)}
+                  className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
+                    isPinned
+                      ? "bg-amber-500 text-white"
+                      : "border-2 border-gray-300"
+                  }`}
+                >
+                  {isPinned && <Star size={12} fill="white" />}
+                </button>
+                <span className="text-sm font-medium text-gray-700">
+                  Pin to top
+                </span>
+              </label>
+              <p className="text-xs text-gray-400 mt-1 ml-7">
+                Always show first on homepage (above newest posts)
               </p>
             </div>
 

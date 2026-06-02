@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import ArticleCard from "@/components/public/ArticleCard";
 import TrendingTicker from "@/components/public/TrendingTicker";
+import TrendingWidget from "@/components/public/TrendingWidget";
 import ScrollReveal from "@/components/public/ScrollReveal";
 import AnalyticsTracker from "@/components/public/AnalyticsTracker";
 import { formatRelativeDate } from "@/lib/utils";
@@ -15,38 +16,28 @@ import { formatRelativeDate } from "@/lib/utils";
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [breakingPosts, latestPosts, categories, popularPosts] =
-    await Promise.all([
-      prisma.post.findMany({
-        where: { status: "published", isBreaking: true },
-        include: {
-          category: { select: { name: true, slug: true, color: true } },
-        },
-        orderBy: { publishedAt: "desc" },
-        take: 6,
-      }),
-      prisma.post.findMany({
-        where: { status: "published" },
-        include: {
-          category: { select: { name: true, slug: true, color: true } },
-        },
-        orderBy: { publishedAt: "desc" },
-        take: 16,
-      }),
-      prisma.category.findMany({
-        include: { _count: { select: { posts: true } } },
-        orderBy: { name: "asc" },
-      }),
-      prisma.post.findMany({
-        where: { status: "published" },
-        include: {
-          category: { select: { name: true, slug: true, color: true } },
-        },
-        orderBy: { publishedAt: "desc" },
-        skip: 4,
-        take: 5,
-      }),
-    ]);
+  const [breakingPosts, latestPosts, categories] = await Promise.all([
+    prisma.post.findMany({
+      where: { status: "published", isBreaking: true },
+      include: {
+        category: { select: { name: true, slug: true, color: true } },
+      },
+      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+      take: 6,
+    }),
+    prisma.post.findMany({
+      where: { status: "published" },
+      include: {
+        category: { select: { name: true, slug: true, color: true } },
+      },
+      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+      take: 16,
+    }),
+    prisma.category.findMany({
+      include: { _count: { select: { posts: true } } },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   const heroPost = breakingPosts[0] || latestPosts[0];
   const sideHeroPosts = (
@@ -308,39 +299,9 @@ export default async function HomePage() {
 
             <aside className="lg:col-span-4">
               <div className="sticky top-20 space-y-5">
-                {popularPosts.length > 0 && (
-                  <ScrollReveal delay={0.1}>
-                    <div className="bg-white dark:bg-white/[0.02] rounded-2xl p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
-                      <h3 className="text-[11px] font-bold text-[#111111] dark:text-white uppercase tracking-[0.12em] mb-4 pb-2.5 border-b border-gray-100 dark:border-white/[0.06]">
-                        Most Popular
-                      </h3>
-                      <div>
-                        {popularPosts.map((post, idx) => (
-                          <Link
-                            key={post.id}
-                            href={`/${post.slug}`}
-                            className="group flex items-start gap-3 py-2.5 border-b border-gray-100/80 dark:border-white/[0.03] last:border-0 last:pb-0 first:pt-0"
-                          >
-                            <span className="text-lg font-black leading-none shrink-0 w-5 tabular-nums text-gray-200 dark:text-white/[0.06] group-hover:text-accent/25 transition-colors duration-300 mt-0.5">
-                              {idx + 1}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <h4 className="text-[13px] font-medium text-[#111111] dark:text-white line-clamp-2 group-hover:text-accent transition-colors duration-300 leading-snug">
-                                {post.title}
-                              </h4>
-                              <span
-                                className="text-[9px] font-bold uppercase tracking-wider mt-1 inline-block"
-                                style={{ color: post.category.color }}
-                              >
-                                {post.category.name}
-                              </span>
-                            </div>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
-                  </ScrollReveal>
-                )}
+                <ScrollReveal delay={0.1}>
+                  <TrendingWidget limit={6} />
+                </ScrollReveal>
 
                 <ScrollReveal delay={0.15}>
                   <div className="relative overflow-hidden rounded-2xl bg-[#111111] p-5">

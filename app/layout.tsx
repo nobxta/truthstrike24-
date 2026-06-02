@@ -24,43 +24,54 @@ export const viewport: Viewport = {
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://truthstrike24.vercel.app";
 const SITE_NAME = "TruthStrike24";
-const SITE_TAGLINE = "Breaking News, Crypto Scam Alerts & Real Investigations";
+const SITE_TAGLINE = "Breaking News, World Coverage & Live Updates 24/7";
 const SITE_DESC =
-  "TruthStrike24 — independent investigative journalism exposing crypto scams, fraud, and corporate cover-ups. Real news, verified sources, breaking stories 24/7. Trusted scam reports on BlockLender, fake exchanges, Ponzi schemes, and high-yield investment frauds.";
+  "TruthStrike24 delivers breaking news, world headlines, politics, business, technology, sports, entertainment and investigative reports — updated 24/7 with verified sources. Independent journalism covering global events, markets, finance, crypto, security, and the stories shaping today.";
 
 // Default OG image — fallback for pages that don't set their own.
 const DEFAULT_OG_IMAGE =
   process.env.NEXT_PUBLIC_DEFAULT_OG_IMAGE ||
   "https://res.cloudinary.com/dumhqc5k6/image/upload/v1780221602/ChatGPT_Image_May_31_2026_03_29_40_PM_sgjcd2.png";
 
-// Big keyword cluster — head + long-tail combined, targeting our niche
+// Comprehensive keyword cluster — general news outlet surface + verticals + long-tail
 const SITE_KEYWORDS = [
   // Brand
-  "truthstrike24", "truth strike 24", "truthstrike news",
-  // News head
-  "breaking news", "latest news today", "news today", "trending news",
-  "world news", "us news", "india news", "tech news", "politics news",
-  "sports news", "entertainment news", "business news",
-  // Investigative / scam — primary focus
-  "crypto scam alerts", "crypto scam detector", "scam exposure",
-  "is it a scam", "scam finder", "fraud investigation",
-  "report a scam", "ponzi scheme list", "fake crypto exchange",
-  "rug pull alerts", "high yield investment scam", "wallet drainer scam",
-  "fake ICO", "yield platform scam", "blocklender scam",
-  // News verticals
-  "true news", "real news", "verified news", "independent journalism",
-  "investigative journalism", "newsroom", "fact-checked news",
-  // Crypto domain
-  "cryptocurrency news", "bitcoin news", "ethereum news", "xrp news",
-  "altcoin news", "defi scam", "nft scam", "crypto fraud", "crypto theft",
-  "blockchain investigation", "web3 scam alerts",
-  // Long-tail
-  "how to identify a crypto scam",
-  "how to recover from crypto scam",
-  "is blocklender.io legit",
-  "crypto yield platform scams 2026",
-  "latest crypto scam alerts",
-  "trending fraud news",
+  "truthstrike24", "truth strike 24", "truthstrike news", "truthstrike",
+  // News head — broad, high-volume
+  "breaking news", "latest news", "news today", "today news", "trending news",
+  "live news", "news updates", "headlines today", "top stories", "news 24/7",
+  "world news", "global news", "international news", "current events",
+  // Geographic
+  "us news", "uk news", "india news", "europe news", "asia news",
+  "middle east news", "africa news", "china news",
+  // Verticals
+  "politics news", "business news", "finance news", "economy news",
+  "tech news", "technology news", "science news", "health news",
+  "sports news", "entertainment news", "celebrity news", "lifestyle news",
+  "education news", "climate news", "weather news", "travel news",
+  // Markets / finance
+  "stock market news", "stock market today", "wall street news",
+  "nasdaq today", "s&p 500 today", "dow jones today",
+  "earnings reports", "ipo news", "market analysis",
+  // Crypto vertical
+  "cryptocurrency news", "bitcoin news", "btc news", "ethereum news", "eth news",
+  "xrp news", "solana news", "altcoin news", "defi news", "nft news",
+  "crypto market today", "crypto prices today", "web3 news", "blockchain news",
+  // Investigative
+  "investigative journalism", "investigative reports", "exposes",
+  "scam alerts", "fraud investigation", "consumer alerts",
+  "is it a scam", "scam exposure", "fact-checked news", "verified news",
+  // Politics / world
+  "election news", "white house news", "congress news", "supreme court news",
+  "geopolitics", "foreign policy", "national security news",
+  // Tech / AI
+  "ai news", "artificial intelligence news", "chatgpt news", "openai news",
+  "anthropic news", "google news", "apple news", "microsoft news",
+  "tesla news", "spacex news", "startup news",
+  // Long-tail evergreen
+  "what happened today", "news right now", "current news today",
+  "live news updates", "real time news", "independent news source",
+  "trusted news site", "unbiased news",
 ];
 
 export const metadata: Metadata = {
@@ -121,11 +132,7 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
-  icons: {
-    icon: DEFAULT_OG_IMAGE,
-    apple: DEFAULT_OG_IMAGE,
-    shortcut: DEFAULT_OG_IMAGE,
-  },
+  // Favicon + apple-touch-icon auto-detected from app/icon.png + app/apple-icon.png
   verification: {
     google: "googlec44898a9d33589c0",
     // yandex: "your-yandex-verification-code",
@@ -142,6 +149,17 @@ export const metadata: Metadata = {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
     "apple-mobile-web-app-title": "TruthStrike24",
+    // Google News + News SEO signals
+    "news_keywords":
+      "breaking news, world news, politics, business, technology, crypto, sports, entertainment, investigations",
+    "article:publisher": SITE_URL,
+    "coverage": "Worldwide",
+    "distribution": "Global",
+    "rating": "General",
+    "language": "EN",
+    "revisit-after": "1 hours",
+    "geo.region": "US",
+    "geo.placename": "Global",
   },
 };
 
@@ -237,10 +255,8 @@ export default function RootLayout({
           href="/rss.xml"
         />
 
-        {/* PWA + iOS install support */}
+        {/* PWA install support — apple-touch-icon auto-generated from app/apple-icon.png */}
         <link rel="manifest" href="/manifest.webmanifest" />
-        <link rel="apple-touch-icon" href={DEFAULT_OG_IMAGE} />
-        <link rel="apple-touch-icon" sizes="180x180" href={DEFAULT_OG_IMAGE} />
 
         {/* Theme color for mobile browser chrome */}
         <meta name="theme-color" content="#dc2626" media="(prefers-color-scheme: light)" />

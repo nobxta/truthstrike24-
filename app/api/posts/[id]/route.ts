@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
+import { sendPushToAll } from "@/lib/push";
+import { pingIndexNow } from "@/lib/indexnow";
 
 export async function GET(
   _req: NextRequest,
@@ -55,6 +57,7 @@ export async function PATCH(
       categoryId,
       tagIds,
       isBreaking,
+      isPinned,
     } = body as {
       title?: string;
       slug?: string;
@@ -68,6 +71,7 @@ export async function PATCH(
       categoryId?: string;
       tagIds?: string[];
       isBreaking?: boolean;
+      isPinned?: boolean;
     };
 
     const data: Record<string, unknown> = {};
@@ -80,6 +84,7 @@ export async function PATCH(
     if (metaDescription !== undefined) data.metaDescription = metaDescription;
     if (categoryId !== undefined) data.categoryId = categoryId;
     if (isBreaking !== undefined) data.isBreaking = isBreaking;
+    if (isPinned !== undefined) data.isPinned = isPinned;
 
     if (customSlug !== undefined && title) {
       let slug = customSlug.trim() ? slugify(customSlug) : slugify(title);
@@ -93,6 +98,14 @@ export async function PATCH(
       }
       data.slug = slug;
     }
+
+    // Detect transition draft/scheduled → published so we can fire push + IndexNow
+    const prior = await prisma.post.findUnique({
+      where: { id: params.id },
+      select: { status: true },
+    });
+    const willPublishNow =
+      status === "published" && prior?.status !== "published";
 
     if (status !== undefined) {
       data.status = status;
@@ -121,6 +134,18 @@ export async function PATCH(
         category: { select: { name: true } },
       },
     });
+
+    // Fire-and-forget push + IndexNow on transition to published
+    if (willPublishNow && post.status === "published") {
+      pingIndexNow(`/${post.slug}`).catch(() => {});
+      sendPushToAll({
+        title: post.title,
+        body: post.summary || `New article from TruthStrike24`,
+        url: `/${post.slug}`,
+        image: post.featuredImage || undefined,
+        tag: `post-${post.slug}`,
+      }).catch(() => {});
+    }
 
     return NextResponse.json(post);
   } catch (error) {

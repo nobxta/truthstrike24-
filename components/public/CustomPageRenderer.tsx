@@ -1472,6 +1472,7 @@ function DisputeForm({
   const [name, setName] = useState("");
   const [subject, setSubject] = useState(`Report: ${pageTitle}`);
   const [description, setDescription] = useState("");
+  const [website, setWebsite] = useState(""); // honeypot
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -1503,6 +1504,7 @@ function DisputeForm({
             description,
             customPageId: pageId,
             customPageSlug: pageSlug,
+            website,
           }),
         });
 
@@ -1518,7 +1520,7 @@ function DisputeForm({
         setLoading(false);
       }
     },
-    [email, name, subject, description, pageId, pageSlug]
+    [email, name, subject, description, pageId, pageSlug, website]
   );
 
   if (success) {
@@ -1542,6 +1544,17 @@ function DisputeForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Honeypot — invisible to humans, bots fill it and get silently rejected */}
+      <input
+        type="text"
+        name="website"
+        value={website}
+        onChange={(e) => setWebsite(e.target.value)}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        style={{ position: "absolute", left: "-9999px", opacity: 0, height: 0, width: 0 }}
+      />
       <div
         className={`rounded-lg p-4 text-xs ${
           isDark

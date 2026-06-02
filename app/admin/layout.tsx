@@ -1,4 +1,5 @@
 import Sidebar from "@/components/admin/Sidebar";
+import ErrorMonitor from "@/components/admin/ErrorMonitor";
 
 export default function AdminLayout({
   children,
@@ -10,6 +11,7 @@ export default function AdminLayout({
       <Sidebar />
       {/* Main content area — full width on mobile, fills space after sidebar on desktop */}
       <main className="flex-1 min-w-0 overflow-x-hidden">{children}</main>
+      <ErrorMonitor />
     </div>
   );
 }

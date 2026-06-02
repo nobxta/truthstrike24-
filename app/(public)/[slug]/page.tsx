@@ -70,7 +70,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: fullTitle,
     description,
     keywords: keywordsArr,
-    authors: post.author?.name ? [{ name: post.author.name }] : undefined,
+    authors: [{ name: "TruthStrike24 Newsroom", url: siteUrlMeta }],
     category: post.category?.name,
     openGraph: {
       title: post.seoTitle || post.title,
@@ -86,7 +86,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       type: "article",
       publishedTime: post.publishedAt?.toISOString(),
       modifiedTime: post.updatedAt?.toISOString(),
-      authors: post.author?.name ? [post.author.name] : undefined,
+      authors: ["TruthStrike24 Newsroom"],
       section: post.category?.name,
       tags: keywordsArr,
       siteName: "TruthStrike24",
@@ -218,12 +218,11 @@ export default async function ArticlePage({ params }: Props) {
     image: post.featuredImage ? [post.featuredImage] : undefined,
     datePublished: dateStr,
     dateModified: post.updatedAt.toISOString(),
-    author: post.author?.name
-      ? {
-          "@type": "Person",
-          name: post.author.name,
-        }
-      : undefined,
+    author: {
+      "@type": "Organization",
+      name: "TruthStrike24 Newsroom",
+      url: siteUrl,
+    },
     publisher: {
       "@type": "Organization",
       name: "TruthStrike24",

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import { checkRateLimit, getClientIp, isHoneypotTripped } from "@/lib/rate-limit";
 
 /**
  * POST /api/newsletter/subscribe
@@ -58,7 +59,25 @@ export async function POST(req: NextRequest) {
       email?: string;
       name?: string;
       source?: string;
+      website?: string; // honeypot
     };
+
+    // Honeypot — silent success so bots think it worked
+    if (isHoneypotTripped(body.website)) {
+      return NextResponse.json({ success: true, message: "Subscribed." });
+    }
+
+    // Rate limit: 5 subscribes / hour / IP
+    const ipForLimit = getClientIp(req);
+    const rl = await checkRateLimit(`newsletter:${ipForLimit}`, 5, 3600);
+    if (!rl.ok) {
+      return NextResponse.json(
+        {
+          error: `Too many attempts. Try again in ${Math.ceil(rl.resetInSec / 60)} minutes.`,
+        },
+        { status: 429, headers: { "Retry-After": String(rl.resetInSec) } }
+      );
+    }
 
     const email = body.email?.trim().toLowerCase();
     if (!email || !EMAIL_RE.test(email)) {

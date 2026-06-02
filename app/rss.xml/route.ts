@@ -28,7 +28,6 @@ export async function GET() {
       take: 50,
       include: {
         category: { select: { name: true } },
-        author: { select: { name: true } },
       },
     });
 
@@ -37,7 +36,7 @@ export async function GET() {
         const link = `${SITE_URL}/${p.slug}`;
         const pubDate = (p.publishedAt || p.createdAt).toUTCString();
         const description = escape(p.metaDescription || p.summary || stripHtml(p.content).slice(0, 250));
-        const author = p.author?.name || SITE_NAME;
+        const author = `${SITE_NAME} Newsroom`;
         return `
     <item>
       <title>${escape(p.title)}</title>
@@ -61,9 +60,9 @@ export async function GET() {
   xmlns:dc="http://purl.org/dc/elements/1.1/"
   xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>${SITE_NAME} — Breaking News, Crypto Scam Alerts &amp; Real Investigations</title>
+    <title>${SITE_NAME} — Breaking News, World Coverage &amp; Live Updates 24/7</title>
     <link>${SITE_URL}</link>
-    <description>Independent investigative journalism. Crypto scam alerts, fraud exposure, and real news 24/7.</description>
+    <description>Breaking news, world headlines, politics, business, technology, sports and investigations. Independent journalism, updated 24/7.</description>
     <language>en-us</language>
     <lastBuildDate>${lastBuild}</lastBuildDate>
     <atom:link href="${SITE_URL}/rss.xml" rel="self" type="application/rss+xml" />
