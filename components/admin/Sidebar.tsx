@@ -20,6 +20,7 @@ import {
   Mail,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 
 const navItems = [
@@ -32,6 +33,7 @@ const navItems = [
   { label: "Custom Pages", href: "/admin/custom-pages", icon: Palette },
   { label: "Disputes", href: "/admin/disputes", icon: MessageSquare },
   { label: "Newsletter", href: "/admin/newsletter", icon: Mail },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { label: "Agent Settings", href: "/admin/agent-settings", icon: Bot },
   { label: "Site Settings", href: "/admin/settings", icon: Settings },
 ];

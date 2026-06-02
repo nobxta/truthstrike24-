@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
   Mail,
   Search,
@@ -13,7 +14,9 @@ import {
   TrendingUp,
   Copy,
   CheckCircle2,
-  AlertCircle,
+  PenSquare,
+  Send,
+  TestTube2,
 } from "lucide-react";
 import TopBar from "@/components/admin/TopBar";
 
@@ -34,6 +37,16 @@ interface Stats {
   total: number;
 }
 
+interface Campaign {
+  id: string;
+  subject: string;
+  fromRole: string;
+  sentToCount: number;
+  failedCount: number;
+  testMode: boolean;
+  createdAt: string;
+}
+
 export default function NewsletterPage() {
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -41,6 +54,7 @@ export default function NewsletterPage() {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +78,13 @@ export default function NewsletterPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    fetch("/api/newsletter/send")
+      .then((r) => r.json())
+      .then((d) => setCampaigns(d.campaigns || []))
+      .catch(() => setCampaigns([]));
+  }, []);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Permanently delete this subscriber?")) return;
@@ -148,7 +169,13 @@ export default function NewsletterPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link
+              href="/admin/newsletter/compose"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700"
+            >
+              <PenSquare size={13} /> Compose Newsletter
+            </Link>
             <button
               onClick={copyEmails}
               disabled={!stats?.active}
@@ -174,20 +201,6 @@ export default function NewsletterPage() {
           </div>
         </div>
 
-        {/* Coming Soon banner */}
-        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-3">
-          <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-[13px] font-semibold text-amber-900">
-              Sending tools coming soon
-            </p>
-            <p className="text-[11px] text-amber-700 mt-0.5">
-              For now, the form just saves emails and confirms with a welcome message. The full
-              newsletter sender (compose, schedule, segment) is planned but not yet built.
-            </p>
-          </div>
-        </div>
-
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -210,6 +223,47 @@ export default function NewsletterPage() {
                 <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Recent Campaigns */}
+        {campaigns.length > 0 && (
+          <div className="mb-6 bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                Recent campaigns
+              </h2>
+              <span className="text-[10px] text-gray-400">Last {campaigns.length}</span>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {campaigns.map((c) => (
+                <div
+                  key={c.id}
+                  className="px-4 py-2.5 flex items-center gap-3 hover:bg-gray-50"
+                >
+                  <div className="w-7 h-7 rounded-md bg-gradient-to-br from-red-50 to-rose-100 text-red-600 flex items-center justify-center shrink-0">
+                    {c.testMode ? <TestTube2 size={13} /> : <Send size={13} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-900 truncate">
+                      {c.subject}
+                    </p>
+                    <p className="text-[11px] text-gray-500">
+                      {new Date(c.createdAt).toLocaleString()} &middot; from {c.fromRole}@
+                      {c.testMode ? " · test" : ""}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[12px] font-bold text-emerald-600">
+                      {c.sentToCount} sent
+                    </p>
+                    {c.failedCount > 0 && (
+                      <p className="text-[10px] text-red-500">{c.failedCount} failed</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

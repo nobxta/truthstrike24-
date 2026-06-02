@@ -1,5 +1,7 @@
 import Header from "@/components/public/Header";
 import Footer from "@/components/public/Footer";
+import CookieConsent from "@/components/public/CookieConsent";
+import NotificationPrompt from "@/components/public/NotificationPrompt";
 
 export default function PublicLayout({
   children,
@@ -13,6 +15,8 @@ export default function PublicLayout({
         {children}
       </main>
       <Footer />
+      <CookieConsent />
+      <NotificationPrompt />
     </>
   );
 }

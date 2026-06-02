@@ -1,95 +1,106 @@
 import type { Metadata } from "next";
-import { Mail, MapPin, Clock, Send } from "lucide-react";
+import { Mail, MessageSquare, Newspaper, LifeBuoy, Send as SendIcon } from "lucide-react";
+import ContactForm from "./ContactForm";
 
 export const metadata: Metadata = {
   title: "Contact Us — TruthStrike24",
-  description: "Get in touch with TruthStrike24. Reach out for news tips, corrections, or general inquiries.",
+  description:
+    "Reach the TruthStrike24 newsroom — news tips, press inquiries, support, and corrections. Multiple channels including Telegram.",
+  openGraph: {
+    title: "Contact TruthStrike24",
+    description: "Get in touch with the newsroom.",
+    type: "website",
+  },
 };
+
+const channels = [
+  {
+    icon: Mail,
+    label: "General",
+    value: "contact@truthstrike24.com",
+    href: "mailto:contact@truthstrike24.com",
+    desc: "Anything that doesn't fit below.",
+  },
+  {
+    icon: Newspaper,
+    label: "News Tips",
+    value: "news@truthstrike24.com",
+    href: "mailto:news@truthstrike24.com",
+    desc: "Story leads, anonymous tips, whistleblowers.",
+  },
+  {
+    icon: SendIcon,
+    label: "Press / Media",
+    value: "contact@truthstrike24.com",
+    href: "mailto:contact@truthstrike24.com",
+    desc: "Interview requests, press passes, syndication.",
+  },
+  {
+    icon: LifeBuoy,
+    label: "Support",
+    value: "support@truthstrike24.com",
+    href: "mailto:support@truthstrike24.com",
+    desc: "Technical issues, dispute chat help, corrections.",
+  },
+  {
+    icon: MessageSquare,
+    label: "Telegram DM",
+    value: "@nobxta",
+    href: "https://t.me/nobxta",
+    desc: "Direct message for fast tips.",
+  },
+];
 
 export default function ContactPage() {
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-serif font-bold text-navy mb-4">
-        Contact Us
-      </h1>
-      <p className="text-lg text-gray-500 mb-10">
-        Have a news tip, correction, or question? We&apos;d love to hear from you.
-      </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div className="bg-white rounded-xl border border-gray-100 p-6 text-center shadow-sm">
-          <Mail size={28} className="text-accent mx-auto mb-3" />
-          <h3 className="font-semibold text-navy text-sm mb-1">Email</h3>
-          <p className="text-sm text-gray-500">contact@truthstrike24.com</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-6 text-center shadow-sm">
-          <MapPin size={28} className="text-accent mx-auto mb-3" />
-          <h3 className="font-semibold text-navy text-sm mb-1">Location</h3>
-          <p className="text-sm text-gray-500">India</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-6 text-center shadow-sm">
-          <Clock size={28} className="text-accent mx-auto mb-3" />
-          <h3 className="font-semibold text-navy text-sm mb-1">Coverage</h3>
-          <p className="text-sm text-gray-500">24/7, 365 days</p>
-        </div>
+    <div className="max-w-5xl mx-auto px-4 py-12">
+      {/* Hero */}
+      <div className="mb-10">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-accent mb-3">
+          Contact
+        </p>
+        <h1 className="text-4xl font-serif font-bold text-navy dark:text-white mb-3">
+          Reach the newsroom.
+        </h1>
+        <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
+          Have a tip, a correction, or a question? Pick the channel that fits
+          and we&apos;ll get back to you. For sensitive tips we recommend Telegram or
+          email.
+        </p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 p-8 shadow-sm">
-        <h2 className="text-xl font-serif font-bold text-navy mb-6">
-          Send a Message
-        </h2>
-        <form className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name
-              </label>
-              <input
-                type="text"
-                placeholder="Your name"
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Subject
-            </label>
-            <input
-              type="text"
-              placeholder="What is this about?"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Message
-            </label>
-            <textarea
-              rows={5}
-              placeholder="Your message..."
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy focus:border-transparent resize-none"
-            />
-          </div>
-          <button
-            type="button"
-            className="flex items-center gap-2 bg-navy text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-navy-light transition-colors"
+      {/* Channels grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
+        {channels.map((c) => (
+          <a
+            key={c.label}
+            href={c.href}
+            target={c.href.startsWith("http") ? "_blank" : undefined}
+            rel={c.href.startsWith("http") ? "noopener noreferrer" : undefined}
+            className="group bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800 p-5 shadow-sm hover:border-accent transition-colors"
           >
-            <Send size={14} />
-            Send Message
-          </button>
-        </form>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-red-50 dark:bg-red-950/30 text-accent flex items-center justify-center shrink-0">
+                <c.icon size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
+                  {c.label}
+                </p>
+                <p className="text-sm font-semibold text-navy dark:text-white truncate group-hover:text-accent transition-colors">
+                  {c.value}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">
+                  {c.desc}
+                </p>
+              </div>
+            </div>
+          </a>
+        ))}
       </div>
+
+      {/* Form */}
+      <ContactForm />
     </div>
   );
 }

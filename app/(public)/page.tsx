@@ -9,6 +9,7 @@ import {
 import ArticleCard from "@/components/public/ArticleCard";
 import TrendingTicker from "@/components/public/TrendingTicker";
 import ScrollReveal from "@/components/public/ScrollReveal";
+import AnalyticsTracker from "@/components/public/AnalyticsTracker";
 import { formatRelativeDate } from "@/lib/utils";
 
 export const revalidate = 60;
@@ -68,6 +69,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <AnalyticsTracker pathname="/" />
       <TrendingTicker posts={tickerPosts} />
 
       {/* ── HERO ── */}

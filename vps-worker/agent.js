@@ -481,6 +481,30 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
     // Instant Bing/Yandex indexing
     await pingIndexNow(`/${post.slug}`);
 
+    // Fire-and-forget push notification to subscribers (via Vercel endpoint)
+    try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.truthstrike24.com";
+      const cronSecret = process.env.CRON_SECRET || "";
+      if (cronSecret) {
+        const notifRes = await fetch(`${siteUrl}/api/push/notify-article`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-cron-secret": cronSecret,
+          },
+          body: JSON.stringify({ postId: post.id }),
+        });
+        if (notifRes.ok) {
+          const j = await notifRes.json();
+          console.log(`   🔔 Push: ${j.sent || 0} sent, ${j.failed || 0} failed`);
+        } else {
+          console.warn(`   🔔 Push ${notifRes.status}`);
+        }
+      }
+    } catch (notifErr) {
+      console.error(`   🔔 Push notify error: ${notifErr.message}`);
+    }
+
     /* Log usage */
     if (aiResult.inputTokens > 0) {
       await prisma.aIUsage.create({

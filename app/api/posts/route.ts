@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { slugify } from "@/lib/utils";
 import { pingIndexNow } from "@/lib/indexnow";
+import { sendPushToAll } from "@/lib/push";
 
 export async function GET(req: NextRequest) {
   try {
@@ -131,6 +132,14 @@ export async function POST(req: NextRequest) {
     // Fire-and-forget IndexNow ping (instant Bing/Yandex indexing)
     if (post.status === "published") {
       pingIndexNow(`/${post.slug}`).catch(() => {});
+      // Fire-and-forget push notification to subscribers
+      sendPushToAll({
+        title: post.title,
+        body: post.summary || `New article from TruthStrike24`,
+        url: `/${post.slug}`,
+        image: post.featuredImage || undefined,
+        tag: `post-${post.slug}`,
+      }).catch(() => {});
     }
 
     return NextResponse.json(post, { status: 201 });

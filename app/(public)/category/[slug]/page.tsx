@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArticleCard from "@/components/public/ArticleCard";
+import AnalyticsTracker from "@/components/public/AnalyticsTracker";
 import { Newspaper, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -40,6 +41,7 @@ export default async function CategoryPage({ params }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <AnalyticsTracker pathname={`/category/${params.slug}`} />
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-navy dark:hover:text-white transition-colors mb-6"

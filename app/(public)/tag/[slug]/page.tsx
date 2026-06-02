@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArticleCard from "@/components/public/ArticleCard";
+import AnalyticsTracker from "@/components/public/AnalyticsTracker";
 import { Tag } from "lucide-react";
 
 interface Props {
@@ -51,6 +52,7 @@ export default async function TagPage({ params }: Props) {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
+      <AnalyticsTracker pathname={`/tag/${params.slug}`} />
       <div className="flex items-center gap-3 mb-8">
         <div className="w-12 h-12 rounded-xl bg-navy text-white flex items-center justify-center">
           <Tag size={22} />

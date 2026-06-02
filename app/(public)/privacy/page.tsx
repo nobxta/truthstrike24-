@@ -2,76 +2,253 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — TruthStrike24",
-  description: "TruthStrike24 privacy policy. Learn how we collect, use, and protect your information.",
+  description:
+    "How TruthStrike24 collects, uses, and protects your information — newsletter, analytics, cookies, push notifications, and your rights.",
+  openGraph: {
+    title: "Privacy Policy — TruthStrike24",
+    description: "How we collect, use, and protect your data.",
+    type: "article",
+  },
 };
 
+const sections = [
+  { id: "intro", title: "Introduction" },
+  { id: "data-we-collect", title: "Data We Collect" },
+  { id: "how-we-use-it", title: "How We Use Your Data" },
+  { id: "third-parties", title: "Third-Party Services" },
+  { id: "cookies", title: "Cookies" },
+  { id: "push", title: "Push Notifications" },
+  { id: "rights", title: "Your Rights" },
+  { id: "retention", title: "Data Retention" },
+  { id: "children", title: "Children's Privacy" },
+  { id: "international", title: "International Users" },
+  { id: "updates", title: "Updates to This Policy" },
+  { id: "contact", title: "Contact" },
+];
+
 export default function PrivacyPage() {
+  const updated = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-serif font-bold text-navy mb-4">
-        Privacy Policy
-      </h1>
-      <p className="text-sm text-gray-400 mb-8">
-        Last updated: {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
-      </p>
+    <div className="max-w-6xl mx-auto px-4 py-12">
+      <div className="lg:grid lg:grid-cols-12 lg:gap-8">
+        {/* Main */}
+        <article className="lg:col-span-9 max-w-[800px]">
+          <h1 className="text-4xl font-serif font-bold text-navy dark:text-white mb-2">
+            Privacy Policy
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-10">
+            Effective date: {updated}
+          </p>
 
-      <div className="prose prose-gray max-w-none prose-headings:font-serif prose-headings:text-navy">
-        <h2>1. Information We Collect</h2>
-        <p>
-          TruthStrike24 is a public news website. We do not require user registration or collect personal information to read our articles. We may collect:
-        </p>
-        <ul>
-          <li>Anonymous usage data through Google Analytics (page views, session duration, device type)</li>
-          <li>Information voluntarily submitted through our contact form</li>
-          <li>Cookies necessary for Google Translate functionality and analytics</li>
-        </ul>
+          <div className="prose prose-gray dark:prose-invert max-w-none prose-headings:font-serif prose-headings:text-navy dark:prose-headings:text-white prose-a:text-accent">
+            <section id="intro">
+              <h2>Introduction</h2>
+              <p>
+                TruthStrike24 (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) operates the website at
+                truthstrike24.com (the &ldquo;Service&rdquo;). This Privacy Policy explains
+                what information we collect, how we use it, who we share it with,
+                and the choices you have. By using the Service you agree to the
+                terms below.
+              </p>
+            </section>
 
-        <h2>2. How We Use Information</h2>
-        <p>
-          Any information we collect is used solely to:
-        </p>
-        <ul>
-          <li>Improve our website content and user experience</li>
-          <li>Respond to inquiries submitted through our contact form</li>
-          <li>Analyze website traffic and performance</li>
-        </ul>
+            <section id="data-we-collect">
+              <h2>Data We Collect</h2>
+              <p>We try to collect as little as possible. What we do collect:</p>
+              <h3>Information you give us</h3>
+              <ul>
+                <li>
+                  <strong>Email address</strong> — when you subscribe to our
+                  newsletter, submit a tip, or use the contact form.
+                </li>
+                <li>
+                  <strong>Name &amp; subject</strong> — optional fields on the contact
+                  form and dispute report system.
+                </li>
+                <li>
+                  <strong>Message content</strong> — anything you write in our
+                  forms or chat tools.
+                </li>
+              </ul>
+              <h3>Information collected automatically</h3>
+              <ul>
+                <li>
+                  <strong>Analytics data</strong> — anonymized page views, session
+                  duration, referrer, device type, and approximate country (from
+                  IP, not stored). Used to understand which stories readers care
+                  about.
+                </li>
+                <li>
+                  <strong>IP address</strong> — recorded temporarily for security,
+                  rate-limiting, and abuse prevention. Not used to identify you
+                  personally.
+                </li>
+                <li>
+                  <strong>User-agent string</strong> — browser and OS, for
+                  compatibility and bot detection.
+                </li>
+              </ul>
+              <h3>Push notification data</h3>
+              <ul>
+                <li>
+                  <strong>Push subscription token</strong> — an anonymous identifier
+                  generated by your browser when you opt in to push notifications.
+                  Used only to send the notifications you requested.
+                </li>
+              </ul>
+            </section>
 
-        <h2>3. Third-Party Services</h2>
-        <p>
-          Our website uses the following third-party services:
-        </p>
-        <ul>
-          <li><strong>Google Analytics</strong> — for anonymous website analytics</li>
-          <li><strong>Google Translate</strong> — for multilingual support</li>
-          <li><strong>Cloudinary</strong> — for image hosting and delivery</li>
-          <li><strong>Vercel</strong> — for website hosting</li>
-        </ul>
+            <section id="how-we-use-it">
+              <h2>How We Use Your Data</h2>
+              <p>We use the data above to:</p>
+              <ul>
+                <li>Send the newsletter you subscribed to.</li>
+                <li>Respond to messages you send through the contact form.</li>
+                <li>Send push notifications when breaking news matches what you opted into.</li>
+                <li>Operate, secure, and improve the Service (analytics, abuse prevention).</li>
+                <li>Comply with legal obligations.</li>
+              </ul>
+              <p>
+                We do <strong>not</strong> sell your data. We do not share it with
+                advertisers for retargeting or behavioral profiling.
+              </p>
+            </section>
 
-        <h2>4. Cookies</h2>
-        <p>
-          We use essential cookies for website functionality and analytics cookies through Google Analytics. You can control cookie settings through your browser preferences.
-        </p>
+            <section id="third-parties">
+              <h2>Third-Party Services</h2>
+              <p>We rely on the following providers, each of which has its own privacy policy:</p>
+              <ul>
+                <li><strong>Vercel</strong> — hosting and edge delivery.</li>
+                <li><strong>Neon</strong> — managed PostgreSQL database (where subscribers and content are stored).</li>
+                <li><strong>Cloudinary</strong> — image hosting and delivery.</li>
+                <li><strong>WaveSpeed</strong> — AI image generation for article art.</li>
+                <li><strong>SpaceMail</strong> — outbound email delivery (newsletter, transactional mail).</li>
+                <li><strong>Google Analytics</strong> — anonymized site analytics, if enabled.</li>
+                <li><strong>Google Translate</strong> — optional multilingual display.</li>
+                <li><strong>Anthropic, OpenAI, Groq</strong> — AI providers used internally for editorial research; reader data is not sent to these services.</li>
+              </ul>
+            </section>
 
-        <h2>5. Data Security</h2>
-        <p>
-          We implement appropriate security measures to protect against unauthorized access, alteration, or destruction of data. Our website is served over HTTPS, and we follow industry best practices for data protection.
-        </p>
+            <section id="cookies">
+              <h2>Cookies</h2>
+              <p>We use a small number of cookies:</p>
+              <ul>
+                <li><strong>Essential cookies</strong> — required for site functionality (login session, language preference).</li>
+                <li><strong>Analytics cookies</strong> — anonymized measurement of traffic. You can disable these in our cookie banner.</li>
+                <li><strong>Consent log cookie</strong> — records the choices you made in the banner so we don&apos;t ask again.</li>
+              </ul>
+              <p>
+                You can clear cookies at any time through your browser settings.
+                Disabling essential cookies may break some features.
+              </p>
+            </section>
 
-        <h2>6. Children&apos;s Privacy</h2>
-        <p>
-          Our website is not directed at children under 13. We do not knowingly collect personal information from children.
-        </p>
+            <section id="push">
+              <h2>Push Notifications</h2>
+              <p>
+                If you opt in to browser push notifications, your browser
+                generates an anonymous subscription token and shares it with us.
+                We use this token only to deliver the notifications you signed up
+                for (breaking news, investigation alerts). You can revoke this at
+                any time through your browser&apos;s notification settings, and we
+                will mark your subscription inactive on next failed delivery.
+              </p>
+            </section>
 
-        <h2>7. Changes to This Policy</h2>
-        <p>
-          We may update this privacy policy periodically. Changes will be posted on this page with an updated revision date.
-        </p>
+            <section id="rights">
+              <h2>Your Rights</h2>
+              <p>Regardless of where you live, you can:</p>
+              <ul>
+                <li><strong>Access</strong> — request a copy of the data we hold about you.</li>
+                <li><strong>Delete</strong> — request deletion of your data.</li>
+                <li><strong>Unsubscribe</strong> — click the one-click unsubscribe link in any newsletter.</li>
+                <li><strong>Correct</strong> — request correction of inaccurate information.</li>
+                <li><strong>Object</strong> — object to processing for any reason.</li>
+              </ul>
+              <p>
+                Email <strong>contact@truthstrike24.com</strong> with the subject
+                line &ldquo;Privacy Request&rdquo; and we will respond within 30 days.
+              </p>
+            </section>
 
-        <h2>8. Contact</h2>
-        <p>
-          For questions about this privacy policy, please contact us at{" "}
-          <strong>contact@truthstrike24.com</strong>.
-        </p>
+            <section id="retention">
+              <h2>Data Retention</h2>
+              <ul>
+                <li><strong>Newsletter subscribers</strong> — kept until you unsubscribe. Unsubscribed records are retained for 6 months to honor opt-outs, then deleted.</li>
+                <li><strong>Contact form messages</strong> — kept for 2 years for editorial follow-up, then deleted.</li>
+                <li><strong>Analytics</strong> — aggregated and retained for up to 14 months. Raw IP addresses are discarded after 30 days.</li>
+                <li><strong>Push subscriptions</strong> — kept until you unsubscribe or the token becomes invalid.</li>
+              </ul>
+            </section>
+
+            <section id="children">
+              <h2>Children&apos;s Privacy</h2>
+              <p>
+                The Service is not directed at children under 13. We do not
+                knowingly collect data from children. If you believe a child has
+                provided us with personal data, email
+                <strong> contact@truthstrike24.com</strong> and we will delete it.
+              </p>
+            </section>
+
+            <section id="international">
+              <h2>International Users</h2>
+              <p>
+                The Service is operated from infrastructure in the United States
+                and the European Union. By using the Service you consent to your
+                data being processed in those jurisdictions. We apply the same
+                protections regardless of where you access from.
+              </p>
+            </section>
+
+            <section id="updates">
+              <h2>Updates to This Policy</h2>
+              <p>
+                We may update this policy as our practices evolve. The
+                &ldquo;Effective date&rdquo; at the top of the page will change when we
+                do. Material changes will be announced via the newsletter or a
+                banner on the site.
+              </p>
+            </section>
+
+            <section id="contact">
+              <h2>Contact</h2>
+              <p>
+                Privacy questions or requests:
+                <br />
+                <strong>contact@truthstrike24.com</strong>
+                <br />
+                Subject line: &ldquo;Privacy Request&rdquo;
+              </p>
+            </section>
+          </div>
+        </article>
+
+        {/* TOC */}
+        <aside className="hidden lg:block lg:col-span-3">
+          <div className="sticky top-24">
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 dark:text-gray-400 mb-3">
+              On this page
+            </p>
+            <ul className="space-y-2 text-sm">
+              {sections.map((s) => (
+                <li key={s.id}>
+                  <a
+                    href={`#${s.id}`}
+                    className="text-gray-600 dark:text-gray-300 hover:text-accent transition-colors"
+                  >
+                    {s.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
       </div>
     </div>
   );

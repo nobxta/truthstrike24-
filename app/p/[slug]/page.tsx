@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getDesign } from "@/lib/designs";
 import CustomPageRenderer from "@/components/public/CustomPageRenderer";
+import AnalyticsTracker from "@/components/public/AnalyticsTracker";
 
 interface Props {
   params: { slug: string };
@@ -76,6 +77,8 @@ export default async function CustomPublicPage({ params }: Props) {
   const design = getDesign(page.design);
 
   return (
+    <>
+      <AnalyticsTracker pathname={`/p/${params.slug}`} />
     <CustomPageRenderer
       page={{
         id: page.id,
@@ -94,5 +97,6 @@ export default async function CustomPublicPage({ params }: Props) {
       }}
       design={design}
     />
+    </>
   );
 }

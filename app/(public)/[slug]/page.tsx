@@ -15,6 +15,7 @@ import ReadingProgress from "@/components/public/ReadingProgress";
 import ShareButtons from "@/components/public/ShareButtons";
 import ScrollReveal from "@/components/public/ScrollReveal";
 import ArticleDateTime from "@/components/public/ArticleDateTime";
+import AnalyticsTracker from "@/components/public/AnalyticsTracker";
 
 interface Props {
   params: { slug: string };
@@ -251,6 +252,7 @@ export default async function ArticlePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
+      <AnalyticsTracker pathname={`/${params.slug}`} postId={post.id} />
       <ReadingProgress />
 
       {/* ── Hero ── */}
