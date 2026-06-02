@@ -8,7 +8,8 @@ export default function AdminLayout({
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 overflow-auto">{children}</main>
+      {/* Main content area — full width on mobile, fills space after sidebar on desktop */}
+      <main className="flex-1 min-w-0 overflow-x-hidden">{children}</main>
     </div>
   );
 }

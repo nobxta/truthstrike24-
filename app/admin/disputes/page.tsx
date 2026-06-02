@@ -20,7 +20,7 @@ export default async function DisputesPage() {
   return (
     <>
       <TopBar title="Disputes" />
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-6xl mx-auto">
         <div className="flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
             <MessageSquare size={20} className="text-white" />
@@ -52,8 +52,8 @@ export default async function DisputesPage() {
             </p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100 text-left">
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">

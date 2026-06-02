@@ -59,7 +59,7 @@ export default async function DisputeDetailPage({
   return (
     <>
       <TopBar title="Dispute Details" />
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
         <Link
           href="/admin/disputes"
           className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors mb-6"

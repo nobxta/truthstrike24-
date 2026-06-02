@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -17,6 +18,8 @@ import {
   Palette,
   MessageSquare,
   Mail,
+  Menu,
+  X,
 } from "lucide-react";
 
 const navItems = [
@@ -35,19 +38,45 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
-  return (
-    <aside className="w-64 bg-navy-light min-h-screen flex flex-col shrink-0">
-      <div className="p-5 border-b border-white/10">
+  // Close drawer when route changes
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll when drawer open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  const sidebarContent = (
+    <>
+      <div className="p-5 border-b border-white/10 flex items-center justify-between">
         <Link href="/admin" className="block">
           <h1 className="text-xl font-bold text-white">
             Truth<span className="text-accent">Strike</span>24
           </h1>
           <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
         </Link>
+        {/* Close button (mobile only) */}
+        <button
+          onClick={() => setOpen(false)}
+          className="lg:hidden p-1.5 text-gray-400 hover:text-white"
+          aria-label="Close menu"
+        >
+          <X size={20} />
+        </button>
       </div>
 
-      <nav className="flex-1 py-4">
+      <nav className="flex-1 py-4 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -59,13 +88,13 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-5 py-2.5 text-sm transition-colors ${
+              className={`flex items-center gap-3 px-5 py-3 text-sm transition-colors ${
                 isActive
                   ? "bg-white/10 text-white border-r-2 border-accent"
                   : "text-gray-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Icon size={18} />
+              <Icon size={18} className="shrink-0" />
               {item.label}
             </Link>
           );
@@ -88,6 +117,38 @@ export default function Sidebar() {
           Logout
         </button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* ── Mobile: floating hamburger button ── */}
+      <button
+        onClick={() => setOpen(true)}
+        className={`lg:hidden fixed top-3 left-3 z-40 w-10 h-10 rounded-lg bg-navy-light text-white flex items-center justify-center shadow-lg transition-opacity ${
+          open ? "opacity-0 pointer-events-none" : "opacity-100"
+        }`}
+        aria-label="Open menu"
+      >
+        <Menu size={20} />
+      </button>
+
+      {/* ── Mobile: backdrop ── */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm animate-in fade-in"
+        />
+      )}
+
+      {/* ── Sidebar: desktop static, mobile drawer ── */}
+      <aside
+        className={`bg-navy-light flex flex-col fixed lg:sticky top-0 left-0 h-screen z-50 transition-transform duration-300 ease-out
+          w-64 shrink-0
+          ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   );
 }
