@@ -43,7 +43,7 @@ export default function BreakingScroll({ items }: { items: Item[] }) {
       ref={ref}
       onMouseEnter={() => (pausedRef.current = true)}
       onMouseLeave={() => (pausedRef.current = false)}
-      className="flex gap-6 overflow-hidden whitespace-nowrap min-w-0 flex-1"
+      className="ticker-fade-edges flex gap-6 overflow-hidden whitespace-nowrap min-w-0 flex-1"
     >
       {doubled.map((p, i) => (
         <Link

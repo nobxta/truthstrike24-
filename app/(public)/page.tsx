@@ -5,6 +5,14 @@ import {
   Clock,
   Newspaper,
   ChevronRight,
+  Zap,
+  Search,
+  TrendingUp,
+  Cpu,
+  Coins,
+  Landmark,
+  Shield,
+  CheckCircle2,
 } from "lucide-react";
 import ArticleCard from "@/components/public/ArticleCard";
 import TrendingTicker from "@/components/public/TrendingTicker";
@@ -324,6 +332,128 @@ export default async function HomePage() {
               </div>
             </aside>
           </div>
+        </div>
+      </section>
+
+      {/* ── WHAT WE COVER (credibility / coverage areas) ── */}
+      <section className="bg-white dark:bg-[#0a0a0f] border-t border-gray-100 dark:border-white/[0.04]">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-14">
+          <ScrollReveal>
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <p className="text-[11px] font-bold text-accent uppercase tracking-[0.2em] mb-2">
+                What We Cover
+              </p>
+              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#111111] dark:text-white mb-3 leading-tight">
+                Independent journalism across six coverage pillars
+              </h2>
+              <p className="text-[14px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                A 24/7 newsroom monitoring the stories that move markets, politics, and the public interest — with verified sources and on-record reporting.
+              </p>
+            </div>
+          </ScrollReveal>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              {
+                icon: Zap,
+                title: "Breaking News",
+                desc: "24/7 live coverage of the moments that matter — confirmed by multiple sources before we publish.",
+                color: "#ef4444",
+              },
+              {
+                icon: Search,
+                title: "Investigations",
+                desc: "Deep-dive exposés into corporate misconduct, fraud, and regulatory failures hidden behind closed doors.",
+                color: "#7c3aed",
+              },
+              {
+                icon: TrendingUp,
+                title: "Markets & Finance",
+                desc: "Wall Street, earnings, IPOs, and macro analysis written for people who actually trade.",
+                color: "#0ea5e9",
+              },
+              {
+                icon: Cpu,
+                title: "Technology & AI",
+                desc: "Big Tech, AI labs, startups, and the policy fights reshaping how the world builds software.",
+                color: "#10b981",
+              },
+              {
+                icon: Coins,
+                title: "Crypto & Web3",
+                desc: "On-chain investigations, exchange exposures, scam alerts, and regulatory crackdowns.",
+                color: "#f59e0b",
+              },
+              {
+                icon: Landmark,
+                title: "Politics & Policy",
+                desc: "Elections, legislation, courts, and the geopolitical forces shaping global affairs.",
+                color: "#dc2626",
+              },
+            ].map((pillar, i) => {
+              const Icon = pillar.icon;
+              return (
+                <ScrollReveal key={pillar.title} delay={i * 0.05}>
+                  <div className="card-lift group h-full bg-[#fafafa] dark:bg-white/[0.02] rounded-2xl p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06] hover:ring-accent/30 hover:bg-white dark:hover:bg-white/[0.04]">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                      style={{ backgroundColor: `${pillar.color}15` }}
+                    >
+                      <Icon size={18} style={{ color: pillar.color }} />
+                    </div>
+                    <h3 className="text-[15px] font-bold text-[#111111] dark:text-white mb-1.5">
+                      {pillar.title}
+                    </h3>
+                    <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                      {pillar.desc}
+                    </p>
+                  </div>
+                </ScrollReveal>
+              );
+            })}
+          </div>
+
+          {/* Trust strip */}
+          <ScrollReveal delay={0.2}>
+            <div className="mt-10 bg-gradient-to-br from-gray-50 to-white dark:from-white/[0.03] dark:to-white/[0.01] rounded-2xl p-6 sm:p-7 ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                {[
+                  {
+                    icon: Shield,
+                    title: "Verified sources",
+                    desc: "Every fact double-checked before publish",
+                  },
+                  {
+                    icon: CheckCircle2,
+                    title: "Editorial independence",
+                    desc: "No advertiser influence on coverage",
+                  },
+                  {
+                    icon: Zap,
+                    title: "Real-time updates",
+                    desc: "Live newsroom monitoring 24/7",
+                  },
+                ].map((t) => {
+                  const Icon = t.icon;
+                  return (
+                    <div key={t.title} className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                        <Icon size={15} className="text-accent" />
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-bold text-[#111111] dark:text-white">
+                          {t.title}
+                        </p>
+                        <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">
+                          {t.desc}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </ScrollReveal>
         </div>
       </section>
 

@@ -24,11 +24,11 @@ export default async function BreakingBar() {
   if (posts.length === 0) return null;
 
   return (
-    <div className="w-full bg-gradient-to-r from-red-600 via-red-700 to-red-600 text-white text-sm relative overflow-hidden">
-      <div className="max-w-7xl mx-auto flex items-center gap-3 px-3 sm:px-4 h-9">
+    <div className="w-full bg-gradient-to-r from-red-700 via-red-600 to-red-700 text-white text-sm relative overflow-hidden shadow-sm">
+      <div className="max-w-7xl mx-auto flex items-center gap-3 px-3 sm:px-4 h-10">
         <Link
           href="/category/breaking"
-          className="flex items-center gap-1.5 shrink-0 font-extrabold text-[11px] uppercase tracking-wider bg-black/25 px-2 py-1 rounded"
+          className="flex items-center gap-1.5 shrink-0 font-extrabold text-[11px] uppercase tracking-wider bg-black/30 px-2.5 py-1 rounded-md hover:bg-black/40 transition-colors"
         >
           <Zap size={12} className="animate-pulse" />
           Breaking

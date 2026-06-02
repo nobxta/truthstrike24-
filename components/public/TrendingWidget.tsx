@@ -54,7 +54,7 @@ export default async function TrendingWidget({ limit = 5 }: { limit?: number }) 
   if (posts.length === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+    <div className="card-lift bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
       <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
           <Flame size={14} className="text-white" />
