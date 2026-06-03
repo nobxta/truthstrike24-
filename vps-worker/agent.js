@@ -305,23 +305,44 @@ function titleSignature(t) {
  * Returns true if the title is generic/lazy — e.g. just the topic + a
  * filler word ("India News", "Tech Update", "Crypto Today"), or contains no
  * concrete subject (no number, no proper noun, no specific event).
+ *
+ * Optional `topic` param: if provided, also rejects titles that just echo
+ * back the topic name (e.g. topic="Indian news" → title="India News").
  */
-function isGenericTitle(title) {
+function isGenericTitle(title, topic) {
   if (!title) return true;
   const t = title.trim();
   // Rule 1: under 50 chars almost always = generic stub
   if (t.length < 50) return true;
   const words = t.split(/\s+/);
   if (words.length < 6) return true; // less than 6 words = thin
-  // Rule 2: very short titles that match "X News", "X Update", "X Today", etc.
-  const filler = /^(news|update|today|now|alert|story|stories|report|reports|latest|breaking|headlines?)$/i;
-  if (words.length <= 4 && filler.test(words[words.length - 1])) return true;
-  // Rule 3: must contain at least ONE digit or capitalized multi-word phrase
-  //         (a real name/company/figure)
+
+  // Rule 2: titles that end in filler words with no specifics
+  const filler = /^(news|update|today|now|alert|story|stories|report|reports|latest|breaking|headlines?|tonight|daily|weekly|monthly)$/i;
+  if (words.length <= 5 && filler.test(words[words.length - 1])) return true;
+
+  // Rule 3: must contain at least ONE digit OR 2+ capitalized proper nouns
   const hasNumber = /\d/.test(t);
-  // Count capitalized words that aren't at the start of a sentence (proxy for proper nouns)
   const capWords = words.filter((w, i) => i > 0 && /^[A-Z][a-z]/.test(w));
   if (!hasNumber && capWords.length < 2) return true;
+
+  // Rule 4: title is essentially the topic name back at us
+  if (topic) {
+    const topicWords = new Set(
+      topic.toLowerCase().split(/\s+/).filter((w) => w.length > 2)
+    );
+    const titleLower = t.toLowerCase();
+    // If title is short AND >=70% of its words are topic words, it's an echo
+    if (words.length <= 7) {
+      const echoed = words.filter(
+        (w) => topicWords.has(w.toLowerCase().replace(/[^a-z]/g, ""))
+      ).length;
+      if (echoed / words.length >= 0.6) return true;
+    }
+    // Exact match (case-insensitive, ignoring punctuation)
+    const norm = (s) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
+    if (norm(t) === norm(topic)) return true;
+  }
   return false;
 }
 
@@ -450,7 +471,23 @@ async function runAgent() {
     if (!topics.length) throw new Error("No topics in settings");
     const topic = topics[Math.floor(Math.random() * topics.length)];
 
-    console.log(`📝 Topic: "${topic}"`);
+    // Add a random story-angle hint so AI is forced to pick a SPECIFIC story,
+    // not just write a generic article about the topic name itself.
+    const angles = [
+      "a specific corporate earnings report or quarterly results from this week",
+      "a named regulatory action, lawsuit, or court ruling that just happened",
+      "a specific scam, fraud, or exposé with named victims and dollar amounts",
+      "a named CEO/executive making a major announcement",
+      "a specific deal, merger, or acquisition announced this week",
+      "a government policy change with date and named official",
+      "a market-moving event with specific percentage moves and dollar amounts",
+      "a named startup raising funding (name the round, $ amount, investors)",
+      "a product launch with named company, exact pricing, and specs",
+      "a specific data breach, hack, or security incident with named victims",
+    ];
+    const angle = angles[Math.floor(Math.random() * angles.length)];
+
+    console.log(`📝 Topic: "${topic}"  Angle: ${angle}`);
     console.log(`🤖 Model: ${provider}/${model}`);
     console.log(`🔎 Web search: ${useWebSearch ? "ON" : "off"}`);
     console.log(`📏 Word limit: ${wordLimit}`);
@@ -589,7 +626,14 @@ Today: ${today}
 ═══════════════════════════════════════════════════════════════════
 Write a publication-grade, SEO-optimized news article. Be specific. Be factual. Be Google-worthy.`;
 
-    const userPrompt = `Write a ${wordLimit}-word news article about: ${topic}\nReturn JSON only.`;
+    const userPrompt = `Write a ${wordLimit}-word news article in the area: "${topic}"
+
+IMPORTANT: Pick a SPECIFIC story — ${angle}.
+
+The title MUST name the actual subject (company, person, dollar amount, percentage, date).
+The title MUST NOT just be "${topic}" or a slight variation. NEVER use words like "News", "Update", or "Today" as the headline.
+
+Return JSON only.`;
 
     /* Call AI with retry on (a) JSON parse failure, (b) short title, (c) duplicate title */
     let aiResult, parsed;
@@ -635,10 +679,10 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
         extraInstruction = `CRITICAL: Your previous title "${parsed.title}" was ${titleLen} characters — TOO SHORT. Write a title that is MINIMUM 60 characters with specific names, dates, and dollar amounts.`;
         continue;
       }
-      if (isGenericTitle(parsed.title)) {
-        console.warn(`   ⚠ Generic title rejected: "${parsed.title}" — retrying`);
+      if (isGenericTitle(parsed.title, topic)) {
+        console.warn(`   ⚠ Generic/topic-echo title rejected: "${parsed.title}" — retrying`);
         lastErr = `Generic title: "${parsed.title}"`;
-        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too generic. It must contain at least 2 of: (a) a named person, (b) a named company/org, (c) a specific number/dollar amount/percentage, (d) a specific date. Example of acceptable: "RBI Cuts Repo Rate to 6.25% as Inflation Falls Below 4% Target". Do NOT use generic words like "News", "Update", "Today" without specifics.`;
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is generic or just echoes the topic "${topic}". The title MUST name a specific SUBJECT — pick from ${angle}. Example pattern: "[Named Company/Person] [Specific Action/Verb] [Dollar Amount or Percentage]". Do NOT use the words "${topic.split(/\s+/).join('", "')}" as the title.`;
         continue;
       }
       if (isDuplicateTitle(parsed.title, recentPosts)) {
