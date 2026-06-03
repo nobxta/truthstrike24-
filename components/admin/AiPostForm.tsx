@@ -382,7 +382,7 @@ export default function AiPostForm({ categories, tags }: Props) {
         return;
       }
       if (action === "publish" && data.slug) {
-        router.push(`/news/${data.slug}`);
+        router.push(`/${data.slug}`);
       } else {
         router.push("/admin/posts");
       }

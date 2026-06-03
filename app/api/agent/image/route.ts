@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         status: "done",
         postId: post.id,
         title: post.title,
-        url: `/news/${post.slug}`,
+        url: `/${post.slug}`,
         featuredImage: result.url,
         durationMs: result.durationMs,
       });

@@ -711,7 +711,7 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
     const totalSec = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`\n✅ SUCCESS in ${totalSec}s`);
     console.log(`   Title: ${post.title}`);
-    console.log(`   URL:   /news/${post.slug}`);
+    console.log(`   URL:   /${post.slug}`);
     console.log(`   Image: ${featuredImage}`);
     if (parsed.source) console.log(`   Source: ${parsed.source}`);
   } catch (error) {

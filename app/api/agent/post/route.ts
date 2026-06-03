@@ -434,7 +434,7 @@ REMEMBER: No filler. No vague language. Specific people, specific numbers, speci
         id: post.id,
         title: post.title,
         slug: post.slug,
-        url: `/news/${post.slug}`,
+        url: `/${post.slug}`,
         featuredImage,
       },
       topic,
