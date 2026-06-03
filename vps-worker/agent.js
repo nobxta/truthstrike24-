@@ -267,6 +267,67 @@ async function generateImage(model, prompt) {
   throw new Error("WaveSpeed timeout after 2min");
 }
 
+/* ─── Recent-titles helpers (anti-duplicate) ─── */
+
+/**
+ * Pull last 40 published titles from DB. Used to feed AI a "do not repeat
+ * these" list AND to post-validate by similarity.
+ */
+async function getRecentTitles(limit = 40) {
+  try {
+    return await prisma.post.findMany({
+      where: { status: "published" },
+      orderBy: { publishedAt: "desc" },
+      take: limit,
+      select: { title: true, slug: true },
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Lowercases + drops short words to make similarity checks robust. */
+function titleSignature(t) {
+  const stop = new Set([
+    "the","a","an","of","in","on","at","to","for","and","or","but","with","as",
+    "by","from","is","are","was","were","be","been","this","that","it","its",
+  ]);
+  return t
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stop.has(w))
+    .sort()
+    .join(" ");
+}
+
+/**
+ * Returns true if `candidate` is too similar to any of `existingTitles`
+ * (≥ 60% word overlap on signature tokens, OR exact substring match).
+ */
+function isDuplicateTitle(candidate, existingTitles) {
+  if (!candidate) return false;
+  const candSig = new Set(titleSignature(candidate).split(" ").filter(Boolean));
+  if (candSig.size === 0) return false;
+  const candLower = candidate.toLowerCase().trim();
+  for (const { title } of existingTitles) {
+    if (!title) continue;
+    const existLower = title.toLowerCase().trim();
+    // Exact or substring containment
+    if (existLower === candLower) return true;
+    if (existLower.length > 20 && candLower.includes(existLower)) return true;
+    if (candLower.length > 20 && existLower.includes(candLower)) return true;
+    // Token-overlap similarity
+    const existSig = new Set(titleSignature(title).split(" ").filter(Boolean));
+    if (existSig.size === 0) continue;
+    let shared = 0;
+    for (const w of candSig) if (existSig.has(w)) shared++;
+    const overlap = shared / Math.min(candSig.size, existSig.size);
+    if (overlap >= 0.6) return true;
+  }
+  return false;
+}
+
 /* ─── Parse AI JSON output (tolerant of raw control chars in strings) ─── */
 
 function sanitizeJsonString(input) {
@@ -370,18 +431,13 @@ async function runAgent() {
     console.log(`🔎 Web search: ${useWebSearch ? "ON" : "off"}`);
     console.log(`📏 Word limit: ${wordLimit}`);
 
-    /* Anti-duplicate: pull last 20 published titles so AI knows what's been covered */
-    const recentPosts = await prisma.post.findMany({
-      where: { status: "published" },
-      orderBy: { publishedAt: "desc" },
-      take: 20,
-      select: { title: true, slug: true, publishedAt: true },
-    });
+    /* Anti-duplicate: pull last 40 published titles so AI knows what's been covered */
+    const recentPosts = await getRecentTitles(40);
     const recentTitlesBlock =
       recentPosts.length > 0
-        ? `\n\nALREADY-COVERED STORIES (DO NOT repeat, rephrase, or write the same angle):\n${recentPosts
+        ? `\n\nALREADY-COVERED STORIES (last ${recentPosts.length}). YOU MUST NOT repeat, rephrase, or write similar angles to ANY of these:\n${recentPosts
             .map((p, i) => `${i + 1}. "${p.title}"`)
-            .join("\n")}\n\nIf your story idea is similar to ANY of the above, pivot to a fresh angle, a different subject, or a brand-new development.`
+            .join("\n")}\n\nYour story MUST be on a DIFFERENT subject (different company, person, event, or angle) than every one of the above.`
         : "";
 
     /* Build prompt (same as Vercel route) */
@@ -491,28 +547,51 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
 
     const userPrompt = `Write a ${wordLimit}-word news article about: ${topic}\nReturn JSON only.`;
 
-    /* Call AI */
-    console.log(`🧠 Calling ${provider}...`);
-    const aiStart = Date.now();
-    let aiResult;
-    if (provider === "anthropic") {
-      aiResult = await callClaude(model, systemPrompt, userPrompt, useWebSearch);
-    } else if (provider === "openai") {
-      aiResult = await callOpenAI(model, systemPrompt, userPrompt);
-    } else {
-      aiResult = await callGroq(model, systemPrompt, userPrompt);
-    }
-    console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
+    /* Call AI with up to 2 retries on duplicate/short title */
+    let aiResult, parsed;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 3;
+    let extraInstruction = "";
+    while (attempt < MAX_ATTEMPTS) {
+      attempt++;
+      console.log(`🧠 Calling ${provider}... (attempt ${attempt}/${MAX_ATTEMPTS})`);
+      const aiStart = Date.now();
+      const finalUser = extraInstruction ? `${userPrompt}\n\n${extraInstruction}` : userPrompt;
+      if (provider === "anthropic") {
+        aiResult = await callClaude(model, systemPrompt, finalUser, useWebSearch);
+      } else if (provider === "openai") {
+        aiResult = await callOpenAI(model, systemPrompt, finalUser);
+      } else {
+        aiResult = await callGroq(model, systemPrompt, finalUser);
+      }
+      console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
 
-    /* Parse */
-    let parsed;
-    try {
-      parsed = extractJson(aiResult.text);
-    } catch (e) {
-      throw new Error(`JSON parse failed: ${e.message}\nRaw: ${aiResult.text.slice(0, 300)}`);
+      try {
+        parsed = extractJson(aiResult.text);
+      } catch (e) {
+        throw new Error(`JSON parse failed: ${e.message}\nRaw: ${aiResult.text.slice(0, 300)}`);
+      }
+      if (!parsed.title || !parsed.content || !parsed.imagePrompt) {
+        throw new Error("AI response missing required fields");
+      }
+
+      // Validate title length + uniqueness
+      const titleLen = parsed.title.length;
+      if (titleLen < 50) {
+        console.warn(`   ⚠ Title too short (${titleLen} chars): "${parsed.title}" — retrying`);
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" was ${titleLen} characters — TOO SHORT. Write a title that is MINIMUM 60 characters with specific names, dates, and dollar amounts.`;
+        continue;
+      }
+      if (isDuplicateTitle(parsed.title, recentPosts)) {
+        console.warn(`   ⚠ Duplicate/similar title: "${parsed.title}" — pivoting to different subject`);
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too similar to one of our recently published stories. PIVOT to a COMPLETELY DIFFERENT subject — different company, different person, different event. Do not write about the same topic.`;
+        continue;
+      }
+      // Passed all checks
+      break;
     }
-    if (!parsed.title || !parsed.content || !parsed.imagePrompt) {
-      throw new Error("AI response missing required fields");
+    if (attempt === MAX_ATTEMPTS && (parsed.title.length < 50 || isDuplicateTitle(parsed.title, recentPosts))) {
+      throw new Error(`Could not produce unique/long-enough title after ${MAX_ATTEMPTS} attempts. Last title: "${parsed.title}"`);
     }
 
     /* Generate image */
@@ -719,11 +798,21 @@ async function processOneGenerationJob() {
     const maxWords = job.wordLimit + 100;
     const today = new Date().toISOString().split("T")[0];
 
+    // Anti-duplicate: same approach as auto-poster
+    const recentPosts = await getRecentTitles(40);
+    const recentTitlesBlock =
+      recentPosts.length > 0
+        ? `\n\nALREADY-COVERED STORIES (last ${recentPosts.length}). DO NOT repeat, rephrase, or write similar angles to ANY of these:\n${recentPosts
+            .map((p, i) => `${i + 1}. "${p.title}"`)
+            .join("\n")}\n\nYour story MUST be on a DIFFERENT subject than every one of the above.`
+        : "";
+
     const systemPrompt = `You are a SENIOR NEWS JOURNALIST + EXPERT SEO WRITER for TruthStrike24, an independent investigative news outlet.
 
 PRIMARY GOAL: Produce a news article that ranks on Google AND reads like real journalism.
 
 TASK: ${job.useWebSearch && job.provider === "anthropic" ? "Use web_search to find a real recent story related to the brief" : "Write a comprehensive, factual article based on the brief"}.
+${recentTitlesBlock}
 
 ═══════════════════════════════════════════════════════════════════
 ARTICLE CONTENT RULES
@@ -802,26 +891,48 @@ Today: ${today}`;
 
     const userPrompt = `Article brief: ${job.context}\n\nWrite the full article. Return JSON only.`;
 
-    console.log(`🧠 Calling ${job.provider}...`);
-    const aiStart = Date.now();
-    let aiResult;
-    if (job.provider === "anthropic") {
-      aiResult = await callClaude(job.model, systemPrompt, userPrompt, job.useWebSearch);
-    } else if (job.provider === "openai") {
-      aiResult = await callOpenAI(job.model, systemPrompt, userPrompt);
-    } else {
-      aiResult = await callGroq(job.model, systemPrompt, userPrompt);
-    }
-    console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
+    let aiResult, parsed;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 3;
+    let extraInstruction = "";
+    while (attempt < MAX_ATTEMPTS) {
+      attempt++;
+      console.log(`🧠 Calling ${job.provider}... (attempt ${attempt}/${MAX_ATTEMPTS})`);
+      const aiStart = Date.now();
+      const finalUser = extraInstruction ? `${userPrompt}\n\n${extraInstruction}` : userPrompt;
+      if (job.provider === "anthropic") {
+        aiResult = await callClaude(job.model, systemPrompt, finalUser, job.useWebSearch);
+      } else if (job.provider === "openai") {
+        aiResult = await callOpenAI(job.model, systemPrompt, finalUser);
+      } else {
+        aiResult = await callGroq(job.model, systemPrompt, finalUser);
+      }
+      console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
 
-    let parsed;
-    try {
-      parsed = extractJson(aiResult.text);
-    } catch (e) {
-      throw new Error(`JSON parse failed: ${e.message}`);
+      try {
+        parsed = extractJson(aiResult.text);
+      } catch (e) {
+        throw new Error(`JSON parse failed: ${e.message}`);
+      }
+      if (!parsed.title || !parsed.content) {
+        throw new Error("AI response missing title or content");
+      }
+
+      const titleLen = parsed.title.length;
+      if (titleLen < 50) {
+        console.warn(`   ⚠ Title too short (${titleLen} chars): "${parsed.title}" — retrying`);
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" was ${titleLen} characters — TOO SHORT. Write a title that is MINIMUM 60 characters with specific names, dates, and dollar amounts.`;
+        continue;
+      }
+      if (isDuplicateTitle(parsed.title, recentPosts)) {
+        console.warn(`   ⚠ Duplicate/similar title: "${parsed.title}" — pivoting`);
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too similar to one of our recently published stories. PIVOT to a COMPLETELY DIFFERENT subject — different company, different person, different event.`;
+        continue;
+      }
+      break;
     }
-    if (!parsed.title || !parsed.content) {
-      throw new Error("AI response missing title or content");
+    if (attempt === MAX_ATTEMPTS && (parsed.title.length < 50 || isDuplicateTitle(parsed.title, recentPosts))) {
+      throw new Error(`Could not produce unique/long-enough title after ${MAX_ATTEMPTS} attempts. Last: "${parsed.title}"`);
     }
 
     let imageUrl = "";
