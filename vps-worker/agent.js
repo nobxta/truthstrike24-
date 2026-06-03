@@ -302,6 +302,30 @@ function titleSignature(t) {
 }
 
 /**
+ * Returns true if the title is generic/lazy — e.g. just the topic + a
+ * filler word ("India News", "Tech Update", "Crypto Today"), or contains no
+ * concrete subject (no number, no proper noun, no specific event).
+ */
+function isGenericTitle(title) {
+  if (!title) return true;
+  const t = title.trim();
+  // Rule 1: under 50 chars almost always = generic stub
+  if (t.length < 50) return true;
+  const words = t.split(/\s+/);
+  if (words.length < 6) return true; // less than 6 words = thin
+  // Rule 2: very short titles that match "X News", "X Update", "X Today", etc.
+  const filler = /^(news|update|today|now|alert|story|stories|report|reports|latest|breaking|headlines?)$/i;
+  if (words.length <= 4 && filler.test(words[words.length - 1])) return true;
+  // Rule 3: must contain at least ONE digit or capitalized multi-word phrase
+  //         (a real name/company/figure)
+  const hasNumber = /\d/.test(t);
+  // Count capitalized words that aren't at the start of a sentence (proxy for proper nouns)
+  const capWords = words.filter((w, i) => i > 0 && /^[A-Z][a-z]/.test(w));
+  if (!hasNumber && capWords.length < 2) return true;
+  return false;
+}
+
+/**
  * Returns true if `candidate` is too similar to any of `existingTitles`
  * (≥ 60% word overlap on signature tokens, OR exact substring match).
  */
@@ -477,18 +501,29 @@ CONTENT STRUCTURE (critical for SEO):
 SEO FIELD RULES — FOLLOW EXACTLY
 ═══════════════════════════════════════════════════════════════════
 
-1. TITLE (the headline shown on the site):
-   - MINIMUM 55 characters, target 65-75 characters (NEVER under 50 chars)
-   - Contains the PRIMARY KEYWORD at the start
-   - PACK IT WITH SPECIFICS: names + numbers + dates + dollar amounts
-   - Compelling, factual, NOT clickbait
-   - Title case
-   - GOOD (rich, specific, 60-75 chars):
-       "Federal Judge Blocks $1.8B Trump Anti-Weaponization Fund Rollout"
-       "Apple Q3 2026 Revenue Hits $90.8B Despite iPhone Sales Slump"
+1. TITLE (the headline shown on the site) — THIS IS THE MOST CRITICAL FIELD:
+   - MINIMUM 60 characters, target 70-85 characters (NEVER under 50)
+   - The title MUST contain AT LEAST ONE of:
+       a) A named person (real name: "Elon Musk", "Narendra Modi", "Jamie Dimon")
+       b) A named company or organization ("Apple", "Reliance Industries", "SBI")
+       c) A specific number/amount/percentage ("$4.2M", "13%", "1,200 victims")
+       d) A specific date or event ("June 3 vote", "Q3 earnings", "yesterday's hearing")
+   - PACK IT WITH SPECIFICS — minimum 2 of (a)(b)(c)(d) combined
+
+   ⛔ ABSOLUTELY FORBIDDEN — DO NOT EVER WRITE TITLES LIKE THESE:
+       "India News" / "Tech Update" / "Crypto News" / "Sports Boom" / "Business Today"
+       "Politics Update" / "Latest Headlines" / "Breaking News" / "Daily News"
+       Any title that just restates the TOPIC NAME with a generic word — REJECTED.
+
+   ✅ THIS IS WHAT A REAL HEADLINE LOOKS LIKE — match this quality:
+       "RBI Cuts Repo Rate to 6.25% as Inflation Falls Below 4% Target"
+       "Reliance Jio Adds 3.1M Subscribers in May, Outpacing Airtel by 2.4M"
+       "Mumbai High Court Halts Adani Power's Maharashtra Coal Tender Bid"
+       "Apple Posts Record $90.8B Q3 Revenue Despite iPhone Sales Slump"
        "BlockLender.io Exit Scam: $4.2M Drained from 1,200 Crypto Wallets"
-   - BAD (too short, vague): "Big news happens" / "Apple earnings" / "Crypto scam alert"
-   - If your title comes out under 50 chars, REWRITE IT with more facts
+
+   If your title cannot pass the test "does this name a real person/company/$/date?",
+   REWRITE IT before returning your response.
 
 2. SEO TITLE (the <title> tag for Google):
    - 50-60 characters MAX (Google truncates around 60)
@@ -592,12 +627,18 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
         continue;
       }
 
-      // Validate title length + uniqueness
+      // Validate title length + genericness + uniqueness
       const titleLen = parsed.title.length;
       if (titleLen < 50) {
         console.warn(`   ⚠ Title too short (${titleLen} chars): "${parsed.title}" — retrying`);
         lastErr = `Title only ${titleLen} chars: "${parsed.title}"`;
         extraInstruction = `CRITICAL: Your previous title "${parsed.title}" was ${titleLen} characters — TOO SHORT. Write a title that is MINIMUM 60 characters with specific names, dates, and dollar amounts.`;
+        continue;
+      }
+      if (isGenericTitle(parsed.title)) {
+        console.warn(`   ⚠ Generic title rejected: "${parsed.title}" — retrying`);
+        lastErr = `Generic title: "${parsed.title}"`;
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too generic. It must contain at least 2 of: (a) a named person, (b) a named company/org, (c) a specific number/dollar amount/percentage, (d) a specific date. Example of acceptable: "RBI Cuts Repo Rate to 6.25% as Inflation Falls Below 4% Target". Do NOT use generic words like "News", "Update", "Today" without specifics.`;
         continue;
       }
       if (isDuplicateTitle(parsed.title, recentPosts)) {
@@ -959,6 +1000,12 @@ Today: ${today}`;
         console.warn(`   ⚠ Title too short (${titleLen} chars): "${parsed.title}" — retrying`);
         lastErr = `Title only ${titleLen} chars`;
         extraInstruction = `CRITICAL: Your previous title "${parsed.title}" was ${titleLen} characters — TOO SHORT. Write a title that is MINIMUM 60 characters with specific names, dates, and dollar amounts.`;
+        continue;
+      }
+      if (isGenericTitle(parsed.title)) {
+        console.warn(`   ⚠ Generic title rejected: "${parsed.title}" — retrying`);
+        lastErr = `Generic title: "${parsed.title}"`;
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too generic. It must contain at least 2 of: (a) a named person, (b) a named company/org, (c) a specific number/dollar amount/percentage, (d) a specific date. Do NOT use generic words like "News", "Update", "Today" without specifics.`;
         continue;
       }
       if (isDuplicateTitle(parsed.title, recentPosts)) {
