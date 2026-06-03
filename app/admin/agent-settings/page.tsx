@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp,
   FileText,
+  AlertCircle,
 } from "lucide-react";
 import TopBar from "@/components/admin/TopBar";
 import { PROVIDER_MODELS } from "@/lib/ai-providers";
@@ -525,6 +526,9 @@ export default function AgentSettingsPage() {
       </div>
 
       <div className="p-4 sm:p-6 space-y-6 max-w-[1400px] mx-auto">
+
+        {/* ─── Config-health banner: warns about settings that produce bad articles ─── */}
+        <ConfigHealthBanner settings={s} />
 
         {/* ═══════════════════════════════════════════ */}
         {/* SECTION 1 — Dashboard Hero                 */}
@@ -1291,6 +1295,123 @@ function RunResultPanel({ result, tab }: { result: RunResult; tab: TabKey }) {
         <CheckCircle size={14} className="text-emerald-500 shrink-0" />
         <span className="font-bold">Success</span>
       </div>
+    </div>
+  );
+}
+
+/* ─── Config Health Banner ───────────────────────────────────────────────
+ * Scans the agent settings + topicFocus for combinations that empirically
+ * produce bad articles (generic titles, outdated content, weak SEO).
+ * Renders an actionable warning if any issue is found.
+ */
+function ConfigHealthBanner({
+  settings,
+}: {
+  settings: Settings;
+}) {
+  const issues: { severity: "error" | "warn"; title: string; fix: string }[] = [];
+
+  // 1. Web search OFF → stale content from training data
+  if (!settings.useWebSearch) {
+    issues.push({
+      severity: "warn",
+      title: "Web search is OFF — articles use AI training data (may be months out of date)",
+      fix: "Toggle Web search ON in the News Agent tab below. Requires Anthropic provider.",
+    });
+  }
+
+  // 2. Web search ON but provider is not Anthropic (will silently produce stale content)
+  if (settings.useWebSearch && settings.postProvider !== "anthropic") {
+    issues.push({
+      severity: "error",
+      title: `Web search requires Anthropic — you have "${settings.postProvider}" selected`,
+      fix: "Change AI Provider to Anthropic in the News Agent tab. Worker now auto-switches but this saves a step.",
+    });
+  }
+
+  // 3. Generic topics that produce generic titles
+  const topics = (settings.topicFocus || "")
+    .split(/[,\n]/)
+    .map((t: string) => t.trim())
+    .filter(Boolean);
+  const tooGeneric = topics.filter((t: string) => {
+    const lower = t.toLowerCase().trim();
+    return (
+      lower.split(/\s+/).length <= 2 &&
+      /^(india|usa|us|uk|china|tech|sports|business|crypto|politics|markets|finance|world)( news| updates?| today)?$/i.test(
+        lower
+      )
+    );
+  });
+  if (tooGeneric.length > 0) {
+    issues.push({
+      severity: "warn",
+      title: `${tooGeneric.length} of your topics are too generic: ${tooGeneric.map((t: string) => `"${t}"`).join(", ")}`,
+      fix: 'Replace with specific themes like "RBI monetary policy 2026", "Adani Group earnings", "Reliance Jio subscriber data", "Mumbai infrastructure projects 2026". Generic topics → generic titles.',
+    });
+  }
+
+  // 4. No topics at all
+  if (topics.length === 0) {
+    issues.push({
+      severity: "error",
+      title: "No topics configured",
+      fix: "Add comma-separated topics to Topic Focus in the News Agent tab.",
+    });
+  }
+
+  // 5. Very short word limit
+  if (settings.wordLimit < 400) {
+    issues.push({
+      severity: "warn",
+      title: `Word limit is only ${settings.wordLimit} — articles will be too thin to rank on Google`,
+      fix: "Bump Word Limit to 800-1500 in the News Agent tab.",
+    });
+  }
+
+  if (issues.length === 0) {
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
+        <CheckCircle size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+        <div className="text-[13px] text-emerald-900">
+          <span className="font-bold">Config looks healthy.</span> Web search on,
+          provider matches, topics are specific.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertCircle size={16} className="text-amber-600" />
+        <h3 className="text-[13px] font-extrabold uppercase tracking-wider text-amber-900">
+          {issues.length} config issue{issues.length === 1 ? "" : "s"} affecting article quality
+        </h3>
+      </div>
+      <ul className="space-y-2.5">
+        {issues.map((issue, i) => (
+          <li
+            key={i}
+            className={`rounded-lg p-3 border ${
+              issue.severity === "error"
+                ? "bg-red-50 border-red-200"
+                : "bg-white border-amber-200"
+            }`}
+          >
+            <p
+              className={`text-[13px] font-bold ${
+                issue.severity === "error" ? "text-red-900" : "text-amber-900"
+              }`}
+            >
+              {issue.title}
+            </p>
+            <p className="text-[12px] text-gray-600 mt-1 leading-relaxed">
+              <span className="font-bold">Fix:</span> {issue.fix}
+            </p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

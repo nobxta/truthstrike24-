@@ -460,10 +460,23 @@ async function runAgent() {
       return;
     }
 
-    const provider = settings.postProvider || "anthropic";
-    const model = settings.model;
+    let provider = settings.postProvider || "anthropic";
+    let model = settings.model;
     const imageModel = settings.imageModel || "wavespeed-ai/flux-dev";
     const useWebSearch = !!settings.useWebSearch;
+
+    // Web search only works with Anthropic. If user enabled it on Groq/OpenAI,
+    // silently switch to Anthropic so they get current news instead of stale
+    // training-data articles.
+    if (useWebSearch && provider !== "anthropic") {
+      if (ANTHROPIC_KEY) {
+        console.warn(`   ⚠ useWebSearch=true requires Anthropic. Auto-switching from ${provider} -> anthropic`);
+        provider = "anthropic";
+        model = "claude-sonnet-4-5"; // safe default Anthropic model
+      } else {
+        console.warn(`   ⚠ useWebSearch=true requested but Anthropic key missing. Articles will use ${provider} training data (may be outdated).`);
+      }
+    }
     const wordLimit = settings.wordLimit || 800;
     const writingStyle = settings.writingStyle || "Professional journalism with specific names, dates, statistics, and quotes from real people.";
 
