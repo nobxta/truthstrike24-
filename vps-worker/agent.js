@@ -54,7 +54,7 @@ function slugify(str) {
 async function callClaude(model, systemPrompt, userMessage, useWebSearch) {
   const body = {
     model,
-    max_tokens: 4096,
+    max_tokens: 8192,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }],
   };
@@ -86,7 +86,7 @@ async function callOpenAI(model, systemPrompt, userMessage) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -108,7 +108,7 @@ async function callGroq(model, systemPrompt, userMessage) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_KEY}` },
     body: JSON.stringify({
       model,
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -525,6 +525,15 @@ SEO FIELD RULES — FOLLOW EXACTLY
    - Examples: "tesla earnings, q3 2026 revenue, elon musk, electric vehicles, ev market"
 
 ═══════════════════════════════════════════════════════════════════
+JSON FORMATTING — CRITICAL
+═══════════════════════════════════════════════════════════════════
+- Output ONLY one valid JSON object. No prose before, after, or fences.
+- Every double-quote INSIDE a string value MUST be escaped as \\".
+  Example: "summary": "As Tom said, \\"this is huge,\\" the deal was signed."
+- For quoted speech, ALWAYS use escaped \\" — never bare " inside a string.
+- No trailing commas. No comments. No multi-line strings without \\n escapes.
+
+═══════════════════════════════════════════════════════════════════
 OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble):
 ═══════════════════════════════════════════════════════════════════
 {
@@ -547,11 +556,12 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
 
     const userPrompt = `Write a ${wordLimit}-word news article about: ${topic}\nReturn JSON only.`;
 
-    /* Call AI with up to 2 retries on duplicate/short title */
+    /* Call AI with retry on (a) JSON parse failure, (b) short title, (c) duplicate title */
     let aiResult, parsed;
     let attempt = 0;
     const MAX_ATTEMPTS = 3;
     let extraInstruction = "";
+    let lastErr = null;
     while (attempt < MAX_ATTEMPTS) {
       attempt++;
       console.log(`🧠 Calling ${provider}... (attempt ${attempt}/${MAX_ATTEMPTS})`);
@@ -566,32 +576,42 @@ Write a publication-grade, SEO-optimized news article. Be specific. Be factual. 
       }
       console.log(`   ✓ AI done in ${((Date.now() - aiStart) / 1000).toFixed(1)}s · ${aiResult.inputTokens}→${aiResult.outputTokens} tokens`);
 
+      // Try to parse — on failure, retry with shorter-output hint
       try {
         parsed = extractJson(aiResult.text);
       } catch (e) {
-        throw new Error(`JSON parse failed: ${e.message}\nRaw: ${aiResult.text.slice(0, 300)}`);
+        console.warn(`   ⚠ JSON parse failed (attempt ${attempt}): ${e.message}`);
+        lastErr = `JSON parse failed: ${e.message}\nRaw last 200 chars: ${aiResult.text.slice(-200)}`;
+        extraInstruction = `CRITICAL: Your previous output was malformed JSON (likely truncated or had unescaped quotes inside string values). RULES:\n1. Output ONLY one valid JSON object. No prose before or after.\n2. Every double-quote INSIDE a string value MUST be escaped as \\".\n3. Keep "content" SHORTER (around 500 words) so we don't hit token limits.\n4. Don't use markdown fences.`;
+        continue;
       }
       if (!parsed.title || !parsed.content || !parsed.imagePrompt) {
-        throw new Error("AI response missing required fields");
+        console.warn(`   ⚠ Missing required fields (attempt ${attempt})`);
+        lastErr = "AI response missing title/content/imagePrompt";
+        extraInstruction = `CRITICAL: Your previous response was missing one of: title, content, imagePrompt. ALL THREE are required fields in the JSON.`;
+        continue;
       }
 
       // Validate title length + uniqueness
       const titleLen = parsed.title.length;
       if (titleLen < 50) {
         console.warn(`   ⚠ Title too short (${titleLen} chars): "${parsed.title}" — retrying`);
+        lastErr = `Title only ${titleLen} chars: "${parsed.title}"`;
         extraInstruction = `CRITICAL: Your previous title "${parsed.title}" was ${titleLen} characters — TOO SHORT. Write a title that is MINIMUM 60 characters with specific names, dates, and dollar amounts.`;
         continue;
       }
       if (isDuplicateTitle(parsed.title, recentPosts)) {
-        console.warn(`   ⚠ Duplicate/similar title: "${parsed.title}" — pivoting to different subject`);
-        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too similar to one of our recently published stories. PIVOT to a COMPLETELY DIFFERENT subject — different company, different person, different event. Do not write about the same topic.`;
+        console.warn(`   ⚠ Duplicate/similar title: "${parsed.title}" — pivoting`);
+        lastErr = `Title too similar to existing: "${parsed.title}"`;
+        extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too similar to one of our recently published stories. PIVOT to a COMPLETELY DIFFERENT subject — different company, different person, different event.`;
         continue;
       }
-      // Passed all checks
+      // All checks passed
+      lastErr = null;
       break;
     }
-    if (attempt === MAX_ATTEMPTS && (parsed.title.length < 50 || isDuplicateTitle(parsed.title, recentPosts))) {
-      throw new Error(`Could not produce unique/long-enough title after ${MAX_ATTEMPTS} attempts. Last title: "${parsed.title}"`);
+    if (lastErr) {
+      throw new Error(`Generation failed after ${MAX_ATTEMPTS} attempts. Last issue: ${lastErr}`);
     }
 
     /* Generate image */
@@ -873,6 +893,15 @@ SEO FIELD RULES — FOLLOW EXACTLY
    - Mix of head (broad) + long-tail (specific)
 
 ═══════════════════════════════════════════════════════════════════
+JSON FORMATTING — CRITICAL
+═══════════════════════════════════════════════════════════════════
+- Output ONLY one valid JSON object. No prose before, after, or fences.
+- Every double-quote INSIDE a string value MUST be escaped as \\".
+  Example: "summary": "As Tom said, \\"this is huge,\\" the deal was signed."
+- For quoted speech, ALWAYS use escaped \\" — never bare " inside a string.
+- No trailing commas. No comments. No multi-line strings without \\n escapes.
+
+═══════════════════════════════════════════════════════════════════
 OUTPUT — STRICT JSON ONLY (no markdown fences, no preamble):
 ═══════════════════════════════════════════════════════════════════
 {
@@ -895,6 +924,7 @@ Today: ${today}`;
     let attempt = 0;
     const MAX_ATTEMPTS = 3;
     let extraInstruction = "";
+    let lastErr = null;
     while (attempt < MAX_ATTEMPTS) {
       attempt++;
       console.log(`🧠 Calling ${job.provider}... (attempt ${attempt}/${MAX_ATTEMPTS})`);
@@ -912,27 +942,36 @@ Today: ${today}`;
       try {
         parsed = extractJson(aiResult.text);
       } catch (e) {
-        throw new Error(`JSON parse failed: ${e.message}`);
+        console.warn(`   ⚠ JSON parse failed (attempt ${attempt}): ${e.message}`);
+        lastErr = `JSON parse failed: ${e.message}`;
+        extraInstruction = `CRITICAL: Your previous output was malformed JSON (likely truncated or had unescaped quotes inside string values). RULES:\n1. Output ONLY one valid JSON object. No prose before or after.\n2. Every double-quote INSIDE a string value MUST be escaped as \\".\n3. Keep "content" SHORTER (around 500 words) so we don't hit token limits.\n4. Don't use markdown fences.`;
+        continue;
       }
       if (!parsed.title || !parsed.content) {
-        throw new Error("AI response missing title or content");
+        console.warn(`   ⚠ Missing title or content (attempt ${attempt})`);
+        lastErr = "Missing required fields";
+        extraInstruction = `CRITICAL: Your previous response was missing title or content. Both are required.`;
+        continue;
       }
 
       const titleLen = parsed.title.length;
       if (titleLen < 50) {
         console.warn(`   ⚠ Title too short (${titleLen} chars): "${parsed.title}" — retrying`);
+        lastErr = `Title only ${titleLen} chars`;
         extraInstruction = `CRITICAL: Your previous title "${parsed.title}" was ${titleLen} characters — TOO SHORT. Write a title that is MINIMUM 60 characters with specific names, dates, and dollar amounts.`;
         continue;
       }
       if (isDuplicateTitle(parsed.title, recentPosts)) {
         console.warn(`   ⚠ Duplicate/similar title: "${parsed.title}" — pivoting`);
+        lastErr = `Title too similar to existing`;
         extraInstruction = `CRITICAL: Your previous title "${parsed.title}" is too similar to one of our recently published stories. PIVOT to a COMPLETELY DIFFERENT subject — different company, different person, different event.`;
         continue;
       }
+      lastErr = null;
       break;
     }
-    if (attempt === MAX_ATTEMPTS && (parsed.title.length < 50 || isDuplicateTitle(parsed.title, recentPosts))) {
-      throw new Error(`Could not produce unique/long-enough title after ${MAX_ATTEMPTS} attempts. Last: "${parsed.title}"`);
+    if (lastErr) {
+      throw new Error(`Generation failed after ${MAX_ATTEMPTS} attempts. Last issue: ${lastErr}`);
     }
 
     let imageUrl = "";
