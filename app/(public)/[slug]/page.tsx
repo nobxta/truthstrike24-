@@ -2,18 +2,11 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import {
-  ArrowLeft,
-  Flame,
-  Newspaper,
-  ChevronRight,
-  Clock,
-} from "lucide-react";
+import { ArrowLeft, Flame, ChevronRight } from "lucide-react";
 import { formatRelativeDate } from "@/lib/utils";
 import ArticleCard from "@/components/public/ArticleCard";
 import ReadingProgress from "@/components/public/ReadingProgress";
 import ShareButtons from "@/components/public/ShareButtons";
-import ScrollReveal from "@/components/public/ScrollReveal";
 import ArticleDateTime from "@/components/public/ArticleDateTime";
 import AnalyticsTracker from "@/components/public/AnalyticsTracker";
 
@@ -127,55 +120,43 @@ export default async function ArticlePage({ params }: Props) {
 
   if (!post) notFound();
 
-  const [hotPosts, trendingPosts, categories, relatedPosts] = await Promise.all(
-    [
-      prisma.post.findMany({
-        where: { status: "published", id: { not: post.id } },
-        select: {
-          title: true,
-          slug: true,
-          featuredImage: true,
-          publishedAt: true,
-          createdAt: true,
-          category: { select: { name: true, color: true } },
-        },
-        orderBy: { publishedAt: "desc" },
-        take: 4,
-      }),
-      prisma.post.findMany({
-        where: { status: "published", id: { not: post.id } },
-        select: {
-          title: true,
-          slug: true,
-          publishedAt: true,
-          createdAt: true,
-          category: { select: { name: true, color: true } },
-        },
-        orderBy: { publishedAt: "desc" },
-        skip: 4,
-        take: 5,
-      }),
-      prisma.category.findMany({
-        include: { _count: { select: { posts: true } } },
-        orderBy: { name: "asc" },
-      }),
-      prisma.post.findMany({
-        where: {
-          status: "published",
-          categoryId: post.categoryId,
-          id: { not: post.id },
-        },
-        include: {
-          category: { select: { name: true, slug: true, color: true } },
-        },
-        orderBy: { publishedAt: "desc" },
-        take: 4,
-      }),
-    ]
-  );
+  const [hotPosts, relatedPosts] = await Promise.all([
+    prisma.post.findMany({
+      where: { status: "published", id: { not: post.id } },
+      select: {
+        title: true,
+        slug: true,
+        featuredImage: true,
+        publishedAt: true,
+        createdAt: true,
+        category: { select: { name: true, color: true } },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 4,
+    }),
+    prisma.post.findMany({
+      where: {
+        status: "published",
+        categoryId: post.categoryId,
+        id: { not: post.id },
+      },
+      include: {
+        category: { select: { name: true, slug: true, color: true } },
+      },
+      orderBy: { publishedAt: "desc" },
+      take: 4,
+    }),
+  ]);
 
   const dateStr =
     post.publishedAt?.toISOString() || post.createdAt.toISOString();
+
+  // Reading-time estimate (220 wpm, strip HTML)
+  const wordCount = post.content
+    .replace(/<[^>]+>/g, " ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+  const readingMin = Math.max(1, Math.round(wordCount / 220));
 
   // JSON-LD structured data (Article schema) for Google rich results
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.truthstrike24.com";
@@ -254,291 +235,219 @@ export default async function ArticlePage({ params }: Props) {
       <AnalyticsTracker pathname={`/${params.slug}`} postId={post.id} />
       <ReadingProgress />
 
-      {/* ── Hero ── */}
-      {post.featuredImage ? (
-        <div className="relative w-full h-[50vh] md:h-[62vh] overflow-hidden article-hero-wrapper">
-          <div className="absolute inset-0 article-hero-image">
-            <img
-              src={post.featuredImage}
-              alt={post.title}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/30 to-black/30 dark:from-[#0a0a0f] dark:via-[#0a0a0f]/30 dark:to-black/40" />
+      {/* ── Breadcrumb / back nav ── */}
+      <div className="border-b border-gray-100 dark:border-white/[0.06]">
+        <div className="max-w-[1100px] mx-auto px-4 sm:px-6 h-11 flex items-center gap-2 text-[12px] text-gray-500 dark:text-gray-400">
+          <Link href="/" className="hover:text-accent transition-colors flex items-center gap-1">
+            <ArrowLeft size={12} /> Home
+          </Link>
+          <span className="text-gray-300 dark:text-gray-700">/</span>
+          <Link
+            href={`/category/${post.category.slug}`}
+            className="hover:text-accent transition-colors font-semibold"
+            style={{ color: post.category.color }}
+          >
+            {post.category.name}
+          </Link>
+        </div>
+      </div>
 
-          <div className="absolute top-6 left-0 right-0 z-10">
-            <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-white/80 hover:text-white bg-black/25 hover:bg-black/40 backdrop-blur-sm transition-all duration-200 group"
-              >
-                <ArrowLeft
-                  size={14}
-                  className="group-hover:-translate-x-0.5 transition-transform duration-200"
-                />
-                Home
-              </Link>
+      {/* ── HEADER (headline-first, like real news) ── */}
+      <header className="bg-white dark:bg-[#0a0a0f]">
+        <div className="max-w-[760px] mx-auto px-4 sm:px-6 pt-10 sm:pt-14 pb-8 article-header-animate">
+          <div className="flex items-center gap-2.5 mb-5 article-stagger-1">
+            <Link
+              href={`/category/${post.category.slug}`}
+              className="px-3 py-1 rounded text-[11px] font-extrabold text-white uppercase tracking-[0.15em] hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: post.category.color }}
+            >
+              {post.category.name}
+            </Link>
+            {post.isBreaking && (
+              <span className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-extrabold text-white bg-red-600 uppercase tracking-[0.15em]">
+                <Flame size={11} />
+                Breaking
+              </span>
+            )}
+          </div>
+
+          {/* Headline */}
+          <h1 className="text-[28px] sm:text-[40px] lg:text-[44px] leading-[1.1] tracking-tight font-serif font-bold text-[#111111] dark:text-white article-stagger-2">
+            {post.title}
+          </h1>
+
+          {/* Dek / summary */}
+          {post.summary && (
+            <p className="text-[17px] sm:text-[19px] text-gray-600 dark:text-gray-400 mt-5 leading-[1.55] article-stagger-3">
+              {post.summary}
+            </p>
+          )}
+
+          {/* Meta strip: date · reading time · share */}
+          <div className="flex items-center justify-between flex-wrap gap-3 mt-7 pt-5 border-t border-gray-200 dark:border-white/[0.08] article-stagger-4">
+            <div className="flex items-center gap-4 text-[13px] text-gray-500 dark:text-gray-400">
+              <ArticleDateTime dateStr={dateStr} />
+              <span className="hidden sm:inline w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-700" />
+              <span className="hidden sm:inline">{readingMin} min read</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <ShareButtons title={post.title} slug={post.slug} />
             </div>
           </div>
         </div>
-      ) : (
-        <div className="pt-8 pb-2">
-          <div className="max-w-[1200px] mx-auto px-4 sm:px-6">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-accent transition-colors group"
-            >
-              <ArrowLeft
-                size={13}
-                className="group-hover:-translate-x-0.5 transition-transform duration-200"
+      </header>
+
+      {/* ── FEATURED IMAGE (between header and body, real news pattern) ── */}
+      {post.featuredImage && (
+        <figure className="bg-white dark:bg-[#0a0a0f]">
+          <div className="max-w-[1100px] mx-auto px-4 sm:px-6">
+            <div className="article-hero-wrapper rounded-2xl overflow-hidden ring-1 ring-black/[0.04] dark:ring-white/[0.04]">
+              <img
+                src={post.featuredImage}
+                alt={post.title}
+                className="article-hero-image w-full h-auto aspect-[16/9] object-cover"
               />
-              Home
-            </Link>
+            </div>
+            {post.summary && (
+              <figcaption className="max-w-[760px] mx-auto text-[12px] text-gray-400 dark:text-gray-500 italic mt-2 px-1">
+                Image illustrating story coverage.
+              </figcaption>
+            )}
           </div>
-        </div>
+        </figure>
       )}
 
-      {/* ── Main Layout ── */}
-      <div
-        className={`max-w-[1200px] mx-auto px-4 sm:px-6 ${
-          post.featuredImage ? "-mt-28 relative z-10" : "pt-2"
-        }`}
-      >
-        <div className="flex gap-10">
-          {/* ═══ LEFT: Content ═══ */}
-          <div className="flex-1 min-w-0">
-            {/* Header card */}
-            <div
-              className={`article-header-animate ${
-                post.featuredImage
-                  ? "bg-white dark:bg-[#12121a] rounded-2xl shadow-2xl shadow-black/8 dark:shadow-black/40 ring-1 ring-black/[0.04] dark:ring-white/[0.08] p-7 sm:p-9"
-                  : "pb-6"
-              }`}
-            >
-              {/* Category + Breaking */}
-              <div className="flex items-center gap-2.5 mb-4 article-stagger-1">
-                <Link
-                  href={`/category/${post.category.slug}`}
-                  className="px-3 py-1 rounded-md text-[11px] font-bold text-white uppercase tracking-wider hover:opacity-90 transition-opacity"
-                  style={{ backgroundColor: post.category.color }}
-                >
-                  {post.category.name}
-                </Link>
-
-                {post.isBreaking && (
-                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold text-accent bg-red-50 dark:bg-red-900/20 uppercase tracking-wider">
-                    <Flame size={11} />
-                    Breaking
-                  </span>
-                )}
-              </div>
-
-              {/* Title */}
-              <h1 className="text-3xl sm:text-[2.5rem] sm:leading-[1.15] font-serif font-bold text-[#111111] dark:text-white article-stagger-2">
-                {post.title}
-              </h1>
-
-              {/* Summary */}
-              {post.summary && (
-                <p className="text-lg text-gray-500 dark:text-gray-400 mt-4 leading-relaxed article-stagger-3">
-                  {post.summary}
-                </p>
-              )}
-
-              {/* Date only */}
-              <div className="mt-6 pt-5 border-t border-gray-100 dark:border-white/[0.06] article-stagger-4">
-                <ArticleDateTime dateStr={dateStr} />
-              </div>
-            </div>
-
-            {/* ── Content + Share ── */}
-            <div className="flex gap-6 mt-10 md:mt-12">
-              {/* Share — just clean icons, no label */}
-              <aside className="hidden lg:block w-10 shrink-0">
-                <div className="sticky top-28">
-                  <ShareButtons title={post.title} slug={post.slug} />
-                </div>
-              </aside>
-
-              {/* Article body */}
-              <div id="article-body" className="flex-1 min-w-0">
+      {/* ── MAIN GRID: article body + slim sidebar ── */}
+      <div className="bg-white dark:bg-[#0a0a0f]">
+        <div className="max-w-[1100px] mx-auto px-4 sm:px-6 pt-10 pb-16">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            {/* Article body — centered, max-width for readability */}
+            <article className="lg:col-span-8 lg:col-start-1 min-w-0">
+              <div className="max-w-[680px] mx-auto">
                 <div
                   className="article-content article-body-animate drop-cap-first"
                   dangerouslySetInnerHTML={{ __html: post.content }}
                 />
+
+                {/* Tags */}
+                {post.tags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 mt-12 pt-7 border-t border-gray-200 dark:border-white/[0.06]">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mr-1">Topics:</span>
+                    {post.tags.map((pt) => (
+                      <Link
+                        key={pt.tag.id}
+                        href={`/tag/${pt.tag.slug}`}
+                        className="px-2.5 py-1 bg-gray-100 dark:bg-white/[0.04] text-gray-600 dark:text-gray-400 rounded text-[12px] font-medium hover:bg-accent hover:text-white transition-colors"
+                      >
+                        #{pt.tag.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {/* Bottom share rail */}
+                <div className="flex items-center justify-between gap-4 mt-10 pt-7 border-t border-gray-200 dark:border-white/[0.06]">
+                  <p className="text-[13px] text-gray-500 dark:text-gray-400 font-medium">
+                    Share this story
+                  </p>
+                  <ShareButtons title={post.title} slug={post.slug} />
+                </div>
               </div>
-            </div>
+            </article>
 
-            {/* ── Tags ── */}
-            {post.tags.length > 0 && (
-              <ScrollReveal>
-                <div className="flex flex-wrap gap-2 mt-14 pt-8 border-t border-gray-200 dark:border-white/[0.06]">
-                  {post.tags.map((pt) => (
-                    <Link
-                      key={pt.tag.id}
-                      href={`/tag/${pt.tag.slug}`}
-                      className="px-3.5 py-1.5 bg-gray-100 dark:bg-white/[0.04] text-gray-500 dark:text-gray-400 rounded-lg text-[13px] hover:bg-accent hover:text-white dark:hover:bg-accent transition-all duration-200"
-                    >
-                      {pt.tag.name}
-                    </Link>
-                  ))}
-                </div>
-              </ScrollReveal>
-            )}
-          </div>
-
-          {/* ═══ RIGHT: Sidebar ═══ */}
-          <aside className="hidden lg:block w-[320px] shrink-0">
-            <div
-              className={`sticky top-24 space-y-8 ${
-                post.featuredImage ? "pt-6" : ""
-              }`}
-            >
-              {/* ─── HOT NEWS ─── */}
-              {hotPosts.length > 0 && (
-                <div className="sidebar-card-animate">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xs font-extrabold text-[#111111] dark:text-white uppercase tracking-wider">
-                      Hot News
-                    </h3>
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                  </div>
-
-                  <div className="space-y-3">
-                    {hotPosts.map((hp) => {
-                      const hpDate =
-                        hp.publishedAt?.toISOString() ||
-                        hp.createdAt.toISOString();
-                      return (
-                        <Link
-                          key={hp.slug}
-                          href={`/${hp.slug}`}
-                          className="flex gap-3 group"
-                        >
-                          {hp.featuredImage ? (
-                            <div className="w-[68px] h-[50px] rounded-lg overflow-hidden shrink-0 bg-gray-100 dark:bg-white/[0.04]">
-                              <img
-                                src={hp.featuredImage}
-                                alt={hp.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-[68px] h-[50px] rounded-lg bg-gray-100 dark:bg-white/[0.04] shrink-0 flex items-center justify-center">
-                              <Newspaper
-                                size={14}
-                                className="text-gray-300 dark:text-gray-600"
-                              />
-                            </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-[13px] font-semibold text-[#111111] dark:text-white line-clamp-2 leading-snug group-hover:text-accent transition-colors duration-200">
-                              {hp.title}
-                            </h4>
-                            <span className="text-[11px] text-gray-400 mt-1 block">
-                              {formatRelativeDate(hpDate)}
-                            </span>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* ─── TRENDING ─── */}
-              {trendingPosts.length > 0 && (
-                <div className="sidebar-card-animate-2">
-                  <h3 className="text-xs font-extrabold text-[#111111] dark:text-white uppercase tracking-wider mb-4">
-                    Trending
-                  </h3>
-
-                  <div className="space-y-0">
-                    {trendingPosts.map((tp, idx) => {
-                      const tpDate =
-                        tp.publishedAt?.toISOString() ||
-                        tp.createdAt.toISOString();
-                      return (
-                        <Link
-                          key={tp.slug}
-                          href={`/${tp.slug}`}
-                          className="flex items-start gap-3 py-3 border-b border-gray-100 dark:border-white/[0.04] last:border-0 group"
-                        >
-                          <span className="text-[22px] font-black text-gray-200 dark:text-white/[0.08] leading-none mt-px w-6 shrink-0 tabular-nums group-hover:text-accent/20 transition-colors">
-                            {idx + 1}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-[13px] font-semibold text-[#111111] dark:text-white line-clamp-2 leading-snug group-hover:text-accent transition-colors duration-200">
-                              {tp.title}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-1">
+            {/* Slim sidebar — only ONE widget (more from category) */}
+            <aside className="lg:col-span-4 lg:col-start-9 min-w-0">
+              <div className="sticky top-20 space-y-6">
+                {hotPosts.length > 0 && (
+                  <div className="bg-[#fafafa] dark:bg-white/[0.02] rounded-xl ring-1 ring-black/[0.04] dark:ring-white/[0.06] p-5">
+                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-white/[0.06]">
+                      <h3 className="text-[11px] font-extrabold text-[#111111] dark:text-white uppercase tracking-wider">
+                        More from the Newsroom
+                      </h3>
+                    </div>
+                    <ul className="space-y-4">
+                      {hotPosts.map((hp) => {
+                        const hpDate =
+                          hp.publishedAt?.toISOString() || hp.createdAt.toISOString();
+                        return (
+                          <li key={hp.slug}>
+                            <Link href={`/${hp.slug}`} className="group block">
+                              {hp.featuredImage && (
+                                <div className="w-full aspect-[16/10] rounded-lg overflow-hidden bg-gray-100 dark:bg-white/[0.04] mb-2">
+                                  <img
+                                    src={hp.featuredImage}
+                                    alt={hp.title}
+                                    className="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500"
+                                  />
+                                </div>
+                              )}
                               <span
                                 className="text-[10px] font-bold uppercase tracking-wider"
-                                style={{ color: tp.category.color }}
+                                style={{ color: hp.category.color }}
                               >
-                                {tp.category.name}
+                                {hp.category.name}
                               </span>
-                              <span className="text-[10px] text-gray-400">
-                                {formatRelativeDate(tpDate)}
+                              <h4 className="text-[14px] font-serif font-semibold text-[#111111] dark:text-white leading-snug mt-1 group-hover:text-accent transition-colors line-clamp-3">
+                                {hp.title}
+                              </h4>
+                              <span className="text-[11px] text-gray-400 mt-1.5 block">
+                                {formatRelativeDate(hpDate)}
                               </span>
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
-                </div>
-              )}
-
-              {/* ─── CATEGORIES ─── */}
-              <div className="sidebar-card-animate-3">
-                <h3 className="text-xs font-extrabold text-[#111111] dark:text-white uppercase tracking-wider mb-4">
-                  Explore
-                </h3>
-
-                <div className="flex flex-wrap gap-1.5">
-                  {categories.map((cat) => (
-                    <Link
-                      key={cat.id}
-                      href={`/category/${cat.slug}`}
-                      className="px-3 py-1.5 rounded-md text-[12px] font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.04] hover:bg-accent hover:text-white dark:hover:bg-accent transition-all duration-200"
-                    >
-                      {cat.name}
-                    </Link>
-                  ))}
-                </div>
+                )}
               </div>
-            </div>
-          </aside>
+            </aside>
+          </div>
         </div>
       </div>
 
-      {/* ── Related ── */}
+      {/* ── RELATED — same-category, 4 cards ── */}
       {relatedPosts.length > 0 && (
-        <ScrollReveal>
-          <section className="max-w-[1200px] mx-auto px-4 sm:px-6 mt-20 pb-12">
-            <div className="border-t border-gray-200 dark:border-white/[0.06] pt-12">
-              <h2 className="text-xl font-serif font-bold text-[#111111] dark:text-white mb-8">
-                More in {post.category.name}
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
-                {relatedPosts.map((rp) => (
-                  <ArticleCard
-                    key={rp.id}
-                    title={rp.title}
-                    slug={rp.slug}
-                    summary={rp.summary}
-                    featuredImage={rp.featuredImage}
-                    category={rp.category}
-                    publishedAt={rp.publishedAt?.toISOString() ?? null}
-                    createdAt={rp.createdAt.toISOString()}
-                  />
-                ))}
+        <section className="bg-[#fafafa] dark:bg-[#0c0c14] border-t border-gray-100 dark:border-white/[0.04]">
+          <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-12">
+            <div className="flex items-end justify-between mb-7">
+              <div className="flex items-center gap-3">
+                <span
+                  className="w-1 h-6 rounded-full"
+                  style={{ backgroundColor: post.category.color }}
+                />
+                <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#111111] dark:text-white">
+                  More in {post.category.name}
+                </h2>
               </div>
+              <Link
+                href={`/category/${post.category.slug}`}
+                className="hidden sm:flex items-center gap-1 text-[12px] font-semibold text-gray-500 dark:text-gray-400 hover:text-accent transition-colors group"
+              >
+                See all
+                <ChevronRight
+                  size={13}
+                  className="group-hover:translate-x-0.5 transition-transform"
+                />
+              </Link>
             </div>
-          </section>
-        </ScrollReveal>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {relatedPosts.map((rp) => (
+                <ArticleCard
+                  key={rp.id}
+                  title={rp.title}
+                  slug={rp.slug}
+                  summary={rp.summary}
+                  featuredImage={rp.featuredImage}
+                  category={rp.category}
+                  publishedAt={rp.publishedAt?.toISOString() ?? null}
+                  createdAt={rp.createdAt.toISOString()}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
       )}
     </>
   );
