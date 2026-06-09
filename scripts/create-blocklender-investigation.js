@@ -335,16 +335,13 @@ async function createCustomPage() {
 
 (async () => {
   try {
-    const category = await ensureCategory();
-    console.log(`✓ Category: ${category.name} (${category.slug})`);
-    const tags = await ensureTags();
-    console.log(`✓ Tags: ${tags.map((t) => t.name).join(", ")}`);
-    const postId = await createPost(category, tags);
-    console.log(`✓ Post ID: ${postId}`);
+    // We only create/maintain the custom landing page. The Post variant was
+    // removed — the custom page handles both the investigation content AND
+    // the SEO surface in a single URL.
     await createCustomPage();
     console.log("\n🎯 Done. Live at:");
-    console.log(`   Article:     https://www.truthstrike24.com/${SLUG}`);
-    console.log(`   Custom page: https://www.truthstrike24.com/p/blocklender-io-scam-report`);
+    console.log(`   https://www.truthstrike24.com/p/blocklender-io-scam-report`);
+    console.log(`\n   Toggle published on/off from: /admin/custom-pages`);
   } catch (e) {
     console.error("FAILED:", e.message);
     process.exit(1);
