@@ -362,7 +362,7 @@ export default function CustomPageRenderer({ page, design }: Props) {
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                   <a
-                    href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || "nobxta"}`}
+                    href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || "temp519"}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={`flex items-center gap-2.5 px-6 py-3.5 rounded-xl text-sm font-bold ${
@@ -437,7 +437,7 @@ export default function CustomPageRenderer({ page, design }: Props) {
               </div>
               <div className="flex items-center gap-4">
                 <a
-                  href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || "nobxta"}`}
+                  href={`https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_USERNAME || "temp519"}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`text-xs ${s.textColor} opacity-50 hover:opacity-80 transition-opacity`}

@@ -185,7 +185,7 @@ const organizationSchema = {
   ethicsPolicy: `${SITE_URL}/about`,
   masthead: `${SITE_URL}/about`,
   sameAs: [
-    "https://t.me/nobxta",
+    "https://t.me/temp519",
     // Add real social URLs when you create accounts:
     // "https://twitter.com/truthstrike24",
     // "https://facebook.com/truthstrike24",

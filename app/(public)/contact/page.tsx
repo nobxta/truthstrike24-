@@ -45,8 +45,8 @@ const channels = [
   {
     icon: MessageSquare,
     label: "Telegram DM",
-    value: "@nobxta",
-    href: "https://t.me/nobxta",
+    value: "@temp519",
+    href: "https://t.me/temp519",
     desc: "Direct message for fast tips.",
   },
 ];
