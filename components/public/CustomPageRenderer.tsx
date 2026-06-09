@@ -13,7 +13,7 @@ import {
   Flag,
 } from "lucide-react";
 import ScrollAnimate from "./ScrollAnimate";
-import { TypewriterText, CountUp, StaggerGrid } from "./ScrollAnimate";
+import { CountUp, StaggerGrid } from "./ScrollAnimate";
 
 export interface ContentSection {
   title: string;
@@ -179,29 +179,43 @@ export default function CustomPageRenderer({ page, design }: Props) {
           </div>
         )}
 
-        {/* ─── Nav ─── */}
-        <nav className="relative z-20">
-          <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-            {page.logoUrl ? (
-              <img
-                src={page.logoUrl}
-                alt={page.title}
-                className="h-8 object-contain"
-                loading="lazy"
-              />
-            ) : (
-              <span
-                className={`text-lg font-bold ${s.headingColor} tracking-tight`}
-              >
-                {page.title}
-              </span>
-            )}
+        {/* ─── Nav (sticky, taller, with masthead-style layout) ─── */}
+        <nav
+          className={`relative z-20 border-b ${
+            isDark ? "border-white/[0.06]" : "border-black/[0.06]"
+          }`}
+        >
+          <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {page.logoUrl ? (
+                <a href="/" className="flex items-center gap-2.5">
+                  <img
+                    src={page.logoUrl}
+                    alt={page.title}
+                    className="h-11 w-11 object-contain rounded"
+                    loading="lazy"
+                  />
+                  <span
+                    className={`hidden sm:inline text-[15px] font-extrabold ${s.headingColor} tracking-tight`}
+                  >
+                    TruthStrike24
+                  </span>
+                </a>
+              ) : (
+                <a
+                  href="/"
+                  className={`text-lg font-bold ${s.headingColor} tracking-tight`}
+                >
+                  {page.title}
+                </a>
+              )}
+            </div>
             {page.ctaText && page.ctaUrl && (
               <a
                 href={page.ctaUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider ${s.buttonStyle} transition-all duration-300`}
+                className={`px-4 py-2 rounded-lg text-[12px] font-semibold ${s.buttonStyle} transition-colors`}
               >
                 {page.ctaText}
               </a>
@@ -211,112 +225,53 @@ export default function CustomPageRenderer({ page, design }: Props) {
 
         {/* ─── Hero ─── */}
         <section className="relative z-10">
-          {page.heroImage && (
-            <div className="absolute inset-0 overflow-hidden">
-              <img
-                src={page.heroImage}
-                alt=""
-                className="w-full h-full object-cover opacity-25 scale-105"
-                loading="lazy"
-                style={{
-                  animation: "cpKenBurns 25s ease-in-out forwards",
-                  willChange: "auto",
-                }}
-              />
-              <div
-                className={`absolute inset-0 bg-gradient-to-t ${s.heroOverlay}`}
-              />
-              <div
-                className="absolute inset-0"
-                style={{
-                  background: `radial-gradient(ellipse at center, transparent 0%, ${design.preview.bg} 75%)`,
-                }}
-              />
-            </div>
-          )}
+          {/* Ghost-overlay heroImage removed: it was rendering the same
+              image as the navbar logo, causing a "logo everywhere" effect.
+              Pages that need a real article photo can include it inside a
+              `full-image` or `image-left` section below. */}
 
-          <div className="relative max-w-5xl mx-auto px-6 pt-20 sm:pt-32 pb-16 sm:pb-24 text-center">
-            {/* Subheadline pill badge */}
+          <div className="relative max-w-3xl mx-auto px-6 pt-12 sm:pt-16 pb-10 sm:pb-12 text-left">
+            {/* Subheadline — small label, not a giant pill */}
             {page.subheadline && (
-              <ScrollAnimate animation="fade-up" duration={600}>
-                <div className="flex justify-center mb-6">
-                  <span
-                    className="inline-block text-[11px] font-bold uppercase tracking-[0.2em] px-5 py-2 rounded-full"
-                    style={{
-                      color: s.accentColor,
-                      border: `1px solid ${s.accentColor}40`,
-                      backgroundColor: `${s.accentColor}12`,
-                    }}
-                  >
-                    {page.subheadline}
-                  </span>
-                </div>
-              </ScrollAnimate>
+              <p
+                className="text-[11px] font-bold uppercase tracking-[0.2em] mb-4"
+                style={{ color: s.accentColor }}
+              >
+                {page.subheadline}
+              </p>
             )}
 
-            {/* Typewriter headline */}
-            <ScrollAnimate animation="blur-in" duration={1000}>
-              <h1
-                className={`text-4xl sm:text-5xl md:text-7xl font-extrabold ${s.headingColor} ${s.fontHeading} leading-[1.05] tracking-tight`}
-              >
-                <TypewriterText
-                  text={page.headline || page.title}
-                  speed={35}
-                  delay={page.subheadline ? 300 : 0}
-                  cursor
-                />
-              </h1>
-            </ScrollAnimate>
+            {/* Headline — plain article-sized, no typewriter */}
+            <h1
+              className={`text-[28px] sm:text-[34px] lg:text-[40px] font-bold ${s.headingColor} ${s.fontHeading} leading-[1.15] tracking-tight`}
+            >
+              {page.headline || page.title}
+            </h1>
 
+            {/* Optional CTA — clean buttons, no big gradient */}
             {page.ctaText && (
-              <ScrollAnimate animation="fade-up" delay={400}>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 sm:mt-14">
-                  <a
-                    href={page.ctaUrl || "#content"}
-                    target={page.ctaUrl ? "_blank" : undefined}
-                    rel={page.ctaUrl ? "noopener noreferrer" : undefined}
-                    className={`group flex items-center gap-2.5 px-8 py-4 rounded-xl text-sm font-bold ${s.buttonStyle} transition-all duration-300`}
-                  >
-                    {page.ctaText}
-                    <ArrowRight
-                      size={16}
-                      className="group-hover:translate-x-0.5 transition-transform"
-                    />
-                  </a>
-                  <a
-                    href="#content"
-                    className={`flex items-center gap-2 px-6 py-3.5 rounded-xl text-sm font-medium ${s.textColor} ${
-                      isDark
-                        ? "bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.06]"
-                        : "bg-black/[0.03] hover:bg-black/[0.06] border border-black/[0.06]"
-                    } transition-all duration-300`}
-                  >
-                    Read More
-                    <ExternalLink size={13} />
-                  </a>
-                </div>
-              </ScrollAnimate>
+              <div className="flex items-center gap-3 mt-6">
+                <a
+                  href={page.ctaUrl || "#content"}
+                  target={page.ctaUrl ? "_blank" : undefined}
+                  rel={page.ctaUrl ? "noopener noreferrer" : undefined}
+                  className={`group inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-semibold ${s.buttonStyle} transition-colors`}
+                >
+                  {page.ctaText}
+                  <ArrowRight
+                    size={14}
+                    className="group-hover:translate-x-0.5 transition-transform"
+                  />
+                </a>
+              </div>
             )}
           </div>
         </section>
 
-        {/* ─── Hero Image Showcase ─── */}
-        {page.heroImage && (
-          <section className="relative z-10 max-w-5xl mx-auto px-6 -mt-4 mb-16">
-            <ScrollAnimate animation="flip-up" duration={1000}>
-              <div
-                className={`rounded-2xl overflow-hidden ${s.cardBorder} ${s.glow || ""}`}
-              >
-                <img
-                  src={page.heroImage}
-                  alt={page.headline || page.title}
-                  className="w-full h-auto object-cover"
-                  loading="lazy"
-                />
-              </div>
-            </ScrollAnimate>
-          </section>
-        )}
+        {/* ─── Featured image (only on designs that want a hero photo —
+              we skip the duplicate "showcase card". The background image
+              above already establishes context.) ─── */}
+        {/* (Intentionally removed — was rendering the same image twice.) */}
 
         {/* ─── Main Content ─── */}
         {page.content && (

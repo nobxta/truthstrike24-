@@ -300,7 +300,7 @@ async function createCustomPage() {
     metaTitle: "BlockLender.io Scam Report — Confirmed XRP Fraud | TruthStrike24",
     metaDesc:
       "Confirmed scam: BlockLender.io drained XRP and RLUSD holders by impersonating Ripple CTO David Schwartz. ScamAdviser 6/100. Full evidence and timeline.",
-    heroImage: HERO_IMAGE,
+    heroImage: "", // intentionally empty — logo only belongs in the navbar
     design: "exposure-white",
     content:
       "<p>By the <strong>TruthStrike24 Newsroom</strong> · Filed June 2026</p><p>This investigation documents the rise and disappearance of BlockLender.io, a fraudulent XRP-yield platform that promised holders 12% APY before blocking withdrawals and going dark. Sources include public WHOIS records, independent risk-service ratings, on-chain activity, and our own monitoring of the operators' paid-press and social-impersonation campaigns.</p>",
