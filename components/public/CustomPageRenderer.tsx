@@ -179,49 +179,63 @@ export default function CustomPageRenderer({ page, design }: Props) {
           </div>
         )}
 
-        {/* ─── Nav (sticky, taller, with masthead-style layout) ─── */}
-        <nav
-          className={`relative z-20 border-b ${
-            isDark ? "border-white/[0.06]" : "border-black/[0.06]"
+        {/* ─── Masthead (wordmark-only, like NYT/Bloomberg/Reuters) ─── */}
+        <header
+          className={`relative z-20 border-b-2 ${
+            isDark ? "border-white/[0.08]" : "border-black/10"
           }`}
         >
-          <div className="max-w-6xl mx-auto px-6 h-20 sm:h-24 flex items-center justify-between">
-            <div className="flex items-center gap-3.5">
-              {page.logoUrl ? (
-                <a href="/" className="flex items-center gap-3.5">
-                  <img
-                    src={page.logoUrl}
-                    alt={page.title}
-                    className="h-14 w-14 sm:h-16 sm:w-16 object-contain"
-                    loading="eager"
-                  />
-                  <span
-                    className={`hidden sm:inline text-[20px] sm:text-[22px] font-extrabold ${s.headingColor} tracking-tight`}
-                  >
-                    TruthStrike24
-                  </span>
-                </a>
-              ) : (
+          {/* Top utility strip — date + accent bar */}
+          <div
+            className={`border-b ${
+              isDark ? "border-white/[0.04]" : "border-black/[0.04]"
+            }`}
+          >
+            <div className="max-w-6xl mx-auto px-6 h-7 flex items-center justify-between text-[10px] uppercase tracking-[0.18em]">
+              <span style={{ color: s.accentColor }} className="font-bold">
+                ● Live Newsroom
+              </span>
+              <span className={s.textColor}>
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Wordmark row */}
+          <div className="max-w-6xl mx-auto px-6 py-5 sm:py-7 flex items-center justify-center sm:justify-between">
+            <div className="flex-1 hidden sm:block" />
+            <a
+              href="/"
+              className={`text-3xl sm:text-[44px] font-serif font-extrabold ${s.headingColor} tracking-[-0.02em] leading-none text-center`}
+            >
+              TruthStrike<span style={{ color: s.accentColor }}>24</span>
+            </a>
+            <div className="flex-1 hidden sm:flex items-center justify-end">
+              {page.ctaText && page.ctaUrl && (
                 <a
-                  href="/"
-                  className={`text-2xl font-extrabold ${s.headingColor} tracking-tight`}
+                  href={page.ctaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`px-4 py-2 rounded text-[11px] font-semibold uppercase tracking-wider ${s.buttonStyle} transition-colors`}
                 >
-                  {page.title}
+                  {page.ctaText}
                 </a>
               )}
             </div>
-            {page.ctaText && page.ctaUrl && (
-              <a
-                href={page.ctaUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`px-4 py-2 rounded-lg text-[12px] font-semibold ${s.buttonStyle} transition-colors`}
-              >
-                {page.ctaText}
-              </a>
-            )}
           </div>
-        </nav>
+
+          {/* Tagline */}
+          <p
+            className={`text-center pb-3 text-[10px] uppercase tracking-[0.25em] ${s.textColor} font-medium`}
+          >
+            Independent Investigative Journalism
+          </p>
+        </header>
 
         {/* ─── Hero ─── */}
         <section className="relative z-10">
