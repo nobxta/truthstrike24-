@@ -185,18 +185,18 @@ export default function CustomPageRenderer({ page, design }: Props) {
             isDark ? "border-white/[0.06]" : "border-black/[0.06]"
           }`}
         >
-          <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="max-w-6xl mx-auto px-6 h-20 sm:h-24 flex items-center justify-between">
+            <div className="flex items-center gap-3.5">
               {page.logoUrl ? (
-                <a href="/" className="flex items-center gap-2.5">
+                <a href="/" className="flex items-center gap-3.5">
                   <img
                     src={page.logoUrl}
                     alt={page.title}
-                    className="h-11 w-11 object-contain rounded"
-                    loading="lazy"
+                    className="h-14 w-14 sm:h-16 sm:w-16 object-contain"
+                    loading="eager"
                   />
                   <span
-                    className={`hidden sm:inline text-[15px] font-extrabold ${s.headingColor} tracking-tight`}
+                    className={`hidden sm:inline text-[20px] sm:text-[22px] font-extrabold ${s.headingColor} tracking-tight`}
                   >
                     TruthStrike24
                   </span>
@@ -204,7 +204,7 @@ export default function CustomPageRenderer({ page, design }: Props) {
               ) : (
                 <a
                   href="/"
-                  className={`text-lg font-bold ${s.headingColor} tracking-tight`}
+                  className={`text-2xl font-extrabold ${s.headingColor} tracking-tight`}
                 >
                   {page.title}
                 </a>
