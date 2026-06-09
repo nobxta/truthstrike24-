@@ -223,65 +223,68 @@ async function createCustomPage() {
   const CP_SLUG = "blocklender-io-scam-report";
   const CP_TITLE = "BlockLender.io — Confirmed Scam Report";
 
+  // Written like a real investigative article — text-heavy, single column,
+  // with a small verdict bar, one stat block for the trust scores, and a
+  // highlight for the registration WHOIS data. No theatrical sections.
   const sections = [
     {
-      title: "VERDICT|Confirmed Scam — XRP Yield Fraud",
-      body: `<p>BlockLender.io presented itself as the first native XRP yield product. It was a sophisticated theft operation that impersonated Ripple CTO David Schwartz to drain XRP and RLUSD holders.</p>`,
+      title: "VERDICT|Confirmed scam — operators have gone dark",
+      body: `<p>Independent risk services classify BlockLender.io as a high-confidence fraud. The site is now returning a 403 Forbidden error and the operators remain untraceable behind a privacy shield in Reykjavík, Iceland.</p>`,
       layout: "verdict",
       image: "",
     },
     {
-      title: "SCORES|Independent risk ratings",
-      body: `<p><strong>6/100</strong> ScamAdviser Trust Score</p><p><strong>11.3/100</strong> Scam-Detector Validator Score</p><p><strong>2 of 2</strong> Independent risk services flag this as fraud</p>`,
-      layout: "stats",
-      image: "",
-    },
-    {
-      title: "BACKGROUND|What BlockLender.io Claimed to Be",
-      body: `<p>BlockLender.io marketed itself as a crypto lending platform built natively on the XRP Ledger. The site promised XRP and RLUSD holders:</p><ul><li><strong>12% fixed APY</strong> with daily compounding</li><li><strong>No lock-up periods</strong> — withdraw any time</li><li><strong>No minimum deposit</strong> — start with any amount</li><li><strong>Native XRPL integration</strong> — claimed direct ledger settlement</li></ul><p>These promises were engineered specifically to appeal to XRP holders who have spent years waiting for a legitimate native yield product.</p>`,
+      title: "LEDE|Inside the BlockLender.io fraud",
+      body: `<p>BlockLender.io marketed itself as the first native XRP Ledger yield platform, promising holders of XRP and RLUSD a fixed <strong>12% annual percentage rate</strong> with daily compounding, no lock-up periods, and no minimum deposit. Those promises were designed to satisfy a long-running request from the XRP community for a native yield product — a request Ripple Labs has historically been reluctant to fulfil because of US securities-law overhang.</p><p>What users found instead was a sophisticated theft operation. Once deposits arrived, withdrawals were either blocked outright or silently redirected to wallet addresses controlled by the operators — not the addresses victims entered. The front-end has since returned a 403 error while paid advertising pointing at the domain continues to run.</p>`,
       layout: "text",
       image: "",
     },
     {
-      title: "EVIDENCE|How the Scam Operated",
-      body: `<p><strong>1. Paid press placements</strong><br/>Sponsored articles on TechBullion and Bitcoin.com (April 2026) created the appearance of editorial legitimacy.</p><hr/><p><strong>2. Ripple CTO impersonation</strong><br/>A fake verified Instagram account at @joelkatz_ posed as David Schwartz, falsely implying Ripple's endorsement of BlockLender.</p><hr/><p><strong>3. AI-generated content flood</strong><br/>The site and social channels were padded with AI-written articles to fake the depth of a real editorial operation.</p><hr/><p><strong>4. Wallet substitution at withdrawal</strong><br/>User-entered withdrawal addresses were silently replaced with scammer-controlled addresses. Deposits were either blocked or redirected.</p>`,
-      layout: "evidence",
+      title: "SCORES|Independent risk assessments",
+      body: `<p><strong>6/100</strong> ScamAdviser Trust Score</p><p><strong>11.3/100</strong> Scam-Detector Validator Score</p><p><strong>2 of 2</strong> Risk services flagging as fraud</p>`,
+      layout: "stats",
       image: "",
     },
     {
-      title: "TIMELINE|How It Played Out",
-      body: `<p><strong>March 6, 2026</strong> — Domain blocklender.io registered anonymously via Namecheap with Iceland privacy shield.</p><hr/><p><strong>April 2026</strong> — Paid promotional articles published on TechBullion and Bitcoin.com. Ads launch targeting XRP holders.</p><hr/><p><strong>April–May 2026</strong> — Fake @joelkatz_ Instagram account active. Withdrawal complaints surface in XRP community channels.</p><hr/><p><strong>May 2026</strong> — ScamAdviser scores domain 6/100. Scam-Detector lists at 11.3/100.</p><hr/><p><strong>June 2026</strong> — Site begins returning 403 Forbidden. Impersonation account and paid ads continue running.</p>`,
+      title: "ANATOMY|How the legitimacy theatre was built",
+      body: `<p>The operators executed a coordinated campaign that combined paid editorial placements, celebrity impersonation, and AI-generated social proof. Each element was engineered to defeat a specific layer of due diligence that an informed XRP holder might perform.</p><p><strong>Paid press placements.</strong> In April 2026, sponsored articles appeared on TechBullion and Bitcoin.com — both outlets accept paid content that can be mistaken for editorial reporting at a glance, particularly on mobile.</p><p><strong>Ripple CTO impersonation.</strong> A fake verified-looking Instagram account at <em>@joelkatz_</em> — David Schwartz's well-known online alias — was deployed to falsely imply Ripple's endorsement of BlockLender. Schwartz has no involvement with the platform.</p><p><strong>AI-generated content flood.</strong> The site and supporting social channels were padded with AI-written articles to manufacture the appearance of a deep editorial operation behind the brand.</p><p><strong>Withdrawal address substitution.</strong> User-entered withdrawal addresses were silently replaced with scammer-controlled addresses at the protocol layer, defeating victims who believed they were withdrawing to self-custodied wallets.</p>`,
+      layout: "text",
+      image: "",
+    },
+    {
+      title: "TIMELINE|From registration to 403",
+      body: `<p><strong>March 6, 2026</strong> — Domain blocklender.io registered anonymously via Namecheap. Privacy shield masks registrant identity behind Withheld for Privacy ehf in Iceland.</p><hr/><p><strong>April 2026</strong> — Paid promotional articles published on TechBullion and Bitcoin.com. Paid ad campaigns launch, targeting XRP search queries and crypto-influencer audiences.</p><hr/><p><strong>April–May 2026</strong> — Fake @joelkatz_ Instagram impersonation account active. Withdrawal complaints surface in XRP community Telegram and Twitter channels.</p><hr/><p><strong>May 2026</strong> — ScamAdviser scores the domain 6/100. Scam-Detector lists it at 11.3/100.</p><hr/><p><strong>June 2026</strong> — Front-end returns 403 Forbidden. Impersonation account and paid ads continue running, harvesting late-arriving traffic.</p>`,
       layout: "timeline",
       image: "",
     },
     {
       title: "QUOTE|Ripple has no relationship with BlockLender",
-      body: `David Schwartz has no involvement with BlockLender.io. The Instagram account @joelkatz_ impersonating Schwartz is fraudulent and was used solely to mislead XRP holders.`,
+      body: `David Schwartz has no involvement with BlockLender.io. The Instagram account impersonating Schwartz is fraudulent and was used solely to mislead XRP holders.`,
       layout: "quote",
       image: "",
     },
     {
-      title: "REGISTRATION|Domain & ownership details",
-      body: `<p><strong>Domain created:</strong> 2026-03-06</p><p><strong>Registrar:</strong> Namecheap Inc — IANA ID 1068</p><p><strong>Owner:</strong> Withheld for Privacy ehf, Reykjavík, Iceland</p><p><strong>Current status:</strong> 403 Forbidden (active fraud infrastructure)</p>`,
+      title: "REGISTRATION|Domain & ownership trail",
+      body: `<p><strong>Domain created:</strong> March 6, 2026</p><p><strong>Registrar:</strong> Namecheap Inc — IANA Registrar ID 1068</p><p><strong>Owner of record:</strong> Withheld for Privacy ehf, Reykjavík, Iceland</p><p><strong>Current status:</strong> 403 Forbidden (front-end dark, ad infrastructure active)</p>`,
       layout: "highlight",
       image: "",
     },
     {
-      title: "PROTECTION|If you sent funds to BlockLender.io",
-      body: `<p>Take these actions immediately:</p><ul><li><strong>Do NOT send more funds</strong> to "unlock" your balance. This is a recovery-fee second-stage scam.</li><li>Record every deposit's destination address and transaction hash.</li><li>Report to FBI IC3 (US) or your national cybercrime authority.</li><li>Submit reports to ScamAdviser and Scam-Detector.</li><li>Rotate seeds on any wallet that interacted with the site.</li><li>Review and revoke token approvals on any associated addresses.</li><li>Never trust anyone offering "recovery services" for a fee — they are scammers.</li></ul>`,
+      title: "VICTIMS|If you sent funds to BlockLender.io",
+      body: `<p>Take the following actions immediately:</p><ul><li><strong>Do not send additional funds.</strong> Any message instructing you to deposit more to "unlock" your balance is a recovery-fee second-stage scam.</li><li><strong>Document everything.</strong> Record every deposit's destination address, transaction hash, and timestamp. Screenshot any in-app messages.</li><li><strong>Report the fraud.</strong> File with the FBI's IC3 (US), Action Fraud (UK), or your national cybercrime authority. Submit reports to ScamAdviser and Scam-Detector to support their listings.</li><li><strong>Secure your wallets.</strong> Rotate seeds on any wallet that interacted with the site. Review and revoke token approvals on associated addresses using a tool like XRPL.org's address explorer.</li><li><strong>Ignore "recovery services."</strong> No legitimate firm contacts victims through Telegram or Instagram. Anyone promising recovery for a fee is a scammer.</li></ul>`,
       layout: "text",
       image: "",
     },
     {
-      title: "TAKEAWAY|Key warning signs every crypto user should know",
-      body: `<p><strong>Anonymously-registered domains</strong> + <strong>celebrity impersonation</strong> + <strong>"too good to be true" APY</strong> = avoid. Always:</p><ul><li>Cross-check claimed endorsements directly with the named person</li><li>Verify domain registration history (use whois.is or similar)</li><li>Search for ScamAdviser, Scam-Detector, and TrustPilot scores before depositing</li><li>Treat 12%+ "no-risk" APYs as fraud by default</li><li>Test withdrawals with small amounts before scaling up deposits</li></ul>`,
+      title: "PATTERN|How to spot the next one",
+      body: `<p>The BlockLender playbook is recognisable. The combination of an anonymously-registered domain, celebrity impersonation, and a too-good-to-be-true fixed APY has accounted for the majority of crypto scams TruthStrike24 has tracked this year. Before depositing funds into any new yield platform:</p><ul><li>Cross-check claimed endorsements directly with the named person — verified profiles will respond.</li><li>Verify domain registration history using whois.is or a similar tool. Recently-registered domains plus high APY are a red-flag combination.</li><li>Search the domain in ScamAdviser, Scam-Detector, and TrustPilot before depositing. A 6/100 takes seconds to find.</li><li>Treat any "no-risk" APY above 8% as fraud by default. Real yields require real risk.</li><li>Test withdrawals with the smallest possible deposit before scaling. Withdrawal friction is the giveaway.</li></ul>`,
       layout: "text",
       image: "",
     },
     {
-      title: "REPORT|Submit additional intel",
-      body: `<p>TruthStrike24 is tracking on-chain movements from identified BlockLender addresses. If you have additional information about the operators, related domains, or further evidence of paid-press placements, contact our newsroom. Sources can request anonymity.</p>`,
-      layout: "banner",
+      title: "NEXT|Tracking the operators",
+      body: `<p>TruthStrike24 has flagged the impersonation account to Instagram and shared deposit-receiving wallet addresses with multiple chain-analysis firms. Updates will be published as the operators attempt to consolidate or off-ramp stolen funds.</p><p>If you have additional information about BlockLender.io, related operators, or further evidence of paid-press placements, contact our newsroom. Sources can request full anonymity.</p>`,
+      layout: "text",
       image: "",
     },
   ];
@@ -289,18 +292,18 @@ async function createCustomPage() {
   const data = {
     title: CP_TITLE,
     slug: CP_SLUG,
-    headline: "BlockLender.io is a confirmed XRP yield scam",
-    subheadline: "INVESTIGATION REPORT · CONFIRMED FRAUD",
-    ctaText: "Read the full investigation",
-    ctaUrl: `/${SLUG}`,
-    logoUrl: "",
+    headline: "BlockLender.io: anatomy of an XRP yield scam that impersonated Ripple's CTO",
+    subheadline: "INVESTIGATION · CRYPTO FRAUD",
+    ctaText: "",
+    ctaUrl: "",
+    logoUrl: "https://res.cloudinary.com/dumhqc5k6/image/upload/f_auto,q_auto/v1780221602/ChatGPT_Image_May_31_2026_03_29_40_PM_sgjcd2.png",
     metaTitle: "BlockLender.io Scam Report — Confirmed XRP Fraud | TruthStrike24",
     metaDesc:
       "Confirmed scam: BlockLender.io drained XRP and RLUSD holders by impersonating Ripple CTO David Schwartz. ScamAdviser 6/100. Full evidence and timeline.",
     heroImage: HERO_IMAGE,
-    design: "scam-alert",
+    design: "exposure-white",
     content:
-      "<p>BlockLender.io marketed a 12% APY native XRP yield product. Independent risk services rate it as fraud. Below is the full evidence file from our investigation.</p>",
+      "<p>By the <strong>TruthStrike24 Newsroom</strong> · Filed June 2026</p><p>This investigation documents the rise and disappearance of BlockLender.io, a fraudulent XRP-yield platform that promised holders 12% APY before blocking withdrawals and going dark. Sources include public WHOIS records, independent risk-service ratings, on-chain activity, and our own monitoring of the operators' paid-press and social-impersonation campaigns.</p>",
     sections: JSON.stringify(sections),
     published: true,
   };
@@ -317,6 +320,7 @@ async function createCustomPage() {
         subheadline: data.subheadline,
         ctaText: data.ctaText,
         ctaUrl: data.ctaUrl,
+        logoUrl: data.logoUrl,
         metaTitle: data.metaTitle,
         metaDesc: data.metaDesc,
         heroImage: data.heroImage,
