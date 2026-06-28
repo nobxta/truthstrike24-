@@ -1,6 +1,9 @@
 import Sidebar from "@/components/admin/Sidebar";
 import ErrorMonitor from "@/components/admin/ErrorMonitor";
 
+// Admin pages query DB on every render — never pre-render at build time.
+export const dynamic = "force-dynamic";
+
 export default function AdminLayout({
   children,
 }: {

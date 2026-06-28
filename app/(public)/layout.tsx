@@ -4,6 +4,11 @@ import CookieConsent from "@/components/public/CookieConsent";
 import NotificationPrompt from "@/components/public/NotificationPrompt";
 import BreakingBar from "@/components/public/BreakingBar";
 
+// Force every (public) page to render at request time, not at build time.
+// Header + BreakingBar query the DB on every render; pre-rendering them at
+// build time fails when the DB is unreachable from Vercel's build sandbox.
+export const dynamic = "force-dynamic";
+
 export default async function PublicLayout({
   children,
 }: {

@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
  */
 
 export const revalidate = 600; // refresh every 10 minutes
+export const dynamic = "force-dynamic"; // never pre-render at build (DB-bound)
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://truthstrike24.vercel.app";
