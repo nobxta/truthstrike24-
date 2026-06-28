@@ -4,7 +4,7 @@
 
 import { prisma } from "@/lib/db";
 
-type Provider = "anthropic" | "openai" | "groq";
+type Provider = "anthropic" | "openai" | "groq" | "nvidia";
 
 interface AIRequestParams {
   provider: Provider;
@@ -58,6 +58,16 @@ export const PROVIDER_MODELS: Record<Provider, { label: string; models: { id: st
       { id: "meta-llama/llama-4-maverick-17b-128e-instruct", name: "Llama 4 Maverick 17B", desc: "Latest Llama 4 MoE" },
     ],
   },
+  nvidia: {
+    label: "NVIDIA NIM (free 40 RPM)",
+    models: [
+      { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B", desc: "OpenAI's open 120B — high quality" },
+      { id: "deepseek-ai/deepseek-v4-pro", name: "DeepSeek V4 Pro", desc: "Strong reasoning + factual" },
+      { id: "moonshotai/kimi-k2.6", name: "Kimi K2.6", desc: "Long-context, thinking mode" },
+      { id: "mistralai/mistral-medium-3.5-128b", name: "Mistral Medium 3.5", desc: "Excellent prose" },
+      { id: "z-ai/glm-5.1", name: "GLM 5.1", desc: "Thinking-mode reasoning" },
+    ],
+  },
 };
 
 /* ── Pricing per 1M tokens (USD) ── */
@@ -91,6 +101,12 @@ const PRICING: Record<string, { input: number; output: number }> = {
   "qwen-qwq-32b": { input: 0.29, output: 0.39 },
   "meta-llama/llama-4-scout-17b-16e-instruct": { input: 0.11, output: 0.34 },
   "meta-llama/llama-4-maverick-17b-128e-instruct": { input: 0.5, output: 0.77 },
+  // NVIDIA NIM — free dev tier (40 RPM)
+  "openai/gpt-oss-120b": { input: 0, output: 0 },
+  "deepseek-ai/deepseek-v4-pro": { input: 0, output: 0 },
+  "moonshotai/kimi-k2.6": { input: 0, output: 0 },
+  "mistralai/mistral-medium-3.5-128b": { input: 0, output: 0 },
+  "z-ai/glm-5.1": { input: 0, output: 0 },
 };
 
 function calcCost(model: string, inputTokens: number, outputTokens: number): number {
@@ -133,6 +149,13 @@ export async function callAI({
       }
       case "groq": {
         const r = await rawGroq(model, systemPrompt, userMessage, maxTokens);
+        result = r.text;
+        inputTokens = r.inputTokens;
+        outputTokens = r.outputTokens;
+        break;
+      }
+      case "nvidia": {
+        const r = await rawNvidia(model, systemPrompt, userMessage, maxTokens);
         result = r.text;
         inputTokens = r.inputTokens;
         outputTokens = r.outputTokens;
@@ -230,6 +253,56 @@ async function rawGroq(model: string, sys: string, msg: string, max: number): Pr
   });
 
   if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return {
+    text: data.choices?.[0]?.message?.content || "",
+    inputTokens: data.usage?.prompt_tokens || 0,
+    outputTokens: data.usage?.completion_tokens || 0,
+  };
+}
+
+/**
+ * NVIDIA NIM — OpenAI-compatible API at integrate.api.nvidia.com.
+ * Free dev tier: 40 RPM. Models include OpenAI's GPT-OSS, DeepSeek V4 Pro,
+ * Kimi K2.6, Mistral Medium 3.5, GLM 5.1, etc.
+ *
+ * All NVIDIA models share training-data-only knowledge — they have no live
+ * web access. Use for evergreen content (how-to guides, technology
+ * explainers, deep-dive analysis) NOT today's breaking news.
+ */
+async function rawNvidia(model: string, sys: string, msg: string, max: number): Promise<RawResult> {
+  const key = process.env.NVIDIA_API_KEY;
+  if (!key) throw new Error("NVIDIA_API_KEY not set");
+
+  // Some NVIDIA models (GLM, Kimi, DeepSeek V4) accept a chat_template_kwargs
+  // flag to enable/disable thinking mode. We disable thinking by default so
+  // responses are clean JSON or HTML without <thinking>...</thinking> blocks.
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: max,
+    temperature: 0.7,
+    top_p: 1.0,
+    messages: [
+      { role: "system", content: sys },
+      { role: "user", content: msg },
+    ],
+  };
+  // Disable thinking-mode prefix on models that support it
+  if (
+    model.startsWith("deepseek-ai/") ||
+    model.startsWith("moonshotai/") ||
+    model.startsWith("z-ai/")
+  ) {
+    body.chat_template_kwargs = { thinking: false };
+  }
+
+  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) throw new Error(`NVIDIA ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return {
     text: data.choices?.[0]?.message?.content || "",

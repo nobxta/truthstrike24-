@@ -60,6 +60,7 @@ async function uploadToCloudinary(imageUrl) {
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
 const OPENAI_KEY = process.env.OPENAI_API_KEY;
 const GROQ_KEY = process.env.GROQ_API_KEY;
+const NVIDIA_KEY = process.env.NVIDIA_API_KEY;
 const WAVESPEED_KEY = process.env.WAVESPEED_API_KEY;
 const WATERMARK_URL = process.env.NEXT_PUBLIC_WATERMARK_URL || "";
 
@@ -149,6 +150,44 @@ async function callGroq(model, systemPrompt, userMessage) {
     }),
   });
   if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  return {
+    text: data.choices[0].message.content,
+    inputTokens: data.usage?.prompt_tokens ?? 0,
+    outputTokens: data.usage?.completion_tokens ?? 0,
+  };
+}
+
+/**
+ * NVIDIA NIM — OpenAI-compatible. Disables thinking-mode on DeepSeek/Kimi/GLM.
+ * Free dev tier = 40 RPM. Models have no live web access; use for evergreen
+ * content only.
+ */
+async function callNvidia(model, systemPrompt, userMessage) {
+  const body = {
+    model,
+    max_tokens: 8192,
+    temperature: 0.7,
+    top_p: 1.0,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ],
+  };
+  if (
+    model.startsWith("deepseek-ai/") ||
+    model.startsWith("moonshotai/") ||
+    model.startsWith("z-ai/")
+  ) {
+    body.chat_template_kwargs = { thinking: false };
+  }
+
+  const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${NVIDIA_KEY}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`NVIDIA ${res.status}: ${await res.text()}`);
   const data = await res.json();
   return {
     text: data.choices[0].message.content,
@@ -696,6 +735,8 @@ Return JSON only.`;
         aiResult = await callClaude(model, systemPrompt, finalUser, useWebSearch);
       } else if (provider === "openai") {
         aiResult = await callOpenAI(model, systemPrompt, finalUser);
+      } else if (provider === "nvidia") {
+        aiResult = await callNvidia(model, systemPrompt, finalUser);
       } else {
         aiResult = await callGroq(model, systemPrompt, finalUser);
       }
@@ -1065,6 +1106,8 @@ Today: ${today}`;
         aiResult = await callClaude(job.model, systemPrompt, finalUser, job.useWebSearch);
       } else if (job.provider === "openai") {
         aiResult = await callOpenAI(job.model, systemPrompt, finalUser);
+      } else if (job.provider === "nvidia") {
+        aiResult = await callNvidia(job.model, systemPrompt, finalUser);
       } else {
         aiResult = await callGroq(job.model, systemPrompt, finalUser);
       }
@@ -1304,6 +1347,8 @@ RULES:
       aiResult = await callClaude(job.model, systemPrompt, userPrompt, job.useWebSearch);
     } else if (job.provider === "openai") {
       aiResult = await callOpenAI(job.model, systemPrompt, userPrompt);
+    } else if (job.provider === "nvidia") {
+      aiResult = await callNvidia(job.model, systemPrompt, userPrompt);
     } else {
       aiResult = await callGroq(job.model, systemPrompt, userPrompt);
     }
