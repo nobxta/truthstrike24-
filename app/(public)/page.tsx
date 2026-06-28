@@ -6,7 +6,7 @@ import TrendingWidget from "@/components/public/TrendingWidget";
 import NewsletterSignup from "@/components/public/NewsletterSignup";
 import { formatRelativeDate } from "@/lib/utils";
 
-export const revalidate = 60;
+export const revalidate = 300; // 5 minutes — was 60s, reduces DB hits 5x
 
 /** Returns true if the post was published in the last `hours` hours. */
 function isFresh(p: HomePost, hours: number): boolean {
@@ -30,29 +30,48 @@ interface HomePost {
 export default async function HomePage() {
   // Pull a generous pool once — we'll partition it across sections without
   // repeating any article. Limit 100 so we always have enough headroom.
-  const pool: HomePost[] = await prisma.post.findMany({
-    where: { status: "published" },
-    orderBy: [{ isPinned: "desc" }, { isBreaking: "desc" }, { publishedAt: "desc" }],
-    take: 100,
-    select: {
-      id: true,
-      title: true,
-      slug: true,
-      summary: true,
-      featuredImage: true,
-      publishedAt: true,
-      createdAt: true,
-      isPinned: true,
-      isBreaking: true,
-      category: { select: { id: true, name: true, slug: true, color: true } },
-    },
-  });
-
-  // Categories with at least one post — dedup by slug just in case.
-  const allCategories = await prisma.category.findMany({
-    include: { _count: { select: { posts: true } } },
-    orderBy: { name: "asc" },
-  });
+  // Wrapped in try/catch: when the DB is at capacity, render an empty
+  // fallback page instead of a 500. Combined with revalidate=300, the last
+  // good render keeps serving from cache for 5 minutes.
+  type CategoryRow = {
+    id: string;
+    name: string;
+    slug: string;
+    color: string;
+    emoji: string;
+    createdAt: Date;
+    _count: { posts: number };
+  };
+  let pool: HomePost[] = [];
+  let allCategories: CategoryRow[] = [];
+  try {
+    [pool, allCategories] = await Promise.all([
+      prisma.post.findMany({
+        where: { status: "published" },
+        orderBy: [{ isPinned: "desc" }, { isBreaking: "desc" }, { publishedAt: "desc" }],
+        take: 100,
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          summary: true,
+          featuredImage: true,
+          publishedAt: true,
+          createdAt: true,
+          isPinned: true,
+          isBreaking: true,
+          category: { select: { id: true, name: true, slug: true, color: true } },
+        },
+      }),
+      prisma.category.findMany({
+        include: { _count: { select: { posts: true } } },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+  } catch (err) {
+    // DB at capacity / unreachable. Log and serve a degraded but non-broken page.
+    console.error("[Homepage DB error]", err instanceof Error ? err.message : err);
+  }
   const seenSlugs = new Set<string>();
   const categories = allCategories.filter((c) => {
     if (seenSlugs.has(c.slug) || c._count.posts === 0) return false;

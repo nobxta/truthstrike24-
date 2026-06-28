@@ -7,6 +7,7 @@
  */
 
 import { prisma } from "@/lib/db";
+import { uploadToCloudinary } from "./cloudinary";
 
 export interface ImageModel {
   id: string;
@@ -227,7 +228,8 @@ export async function generateImage({
 
   // If synchronous response with outputs, return immediately
   if (submitData.outputs && submitData.outputs.length > 0) {
-    const imageUrl = submitData.outputs[0];
+    const rawUrl = submitData.outputs[0];
+    const imageUrl = await uploadToCloudinary(rawUrl);
     const durationMs = Date.now() - start;
     await logImageUsage({
       model,
@@ -245,7 +247,8 @@ export async function generateImage({
   }
 
   try {
-    const imageUrl = await pollResult(predictionId, apiKey);
+    const rawUrl = await pollResult(predictionId, apiKey);
+    const imageUrl = await uploadToCloudinary(rawUrl);
     const durationMs = Date.now() - start;
     await logImageUsage({
       model,

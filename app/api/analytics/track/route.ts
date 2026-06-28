@@ -34,53 +34,34 @@ export async function POST(req: NextRequest) {
       null;
     const city = req.headers.get("x-vercel-ip-city") || null;
 
-    // Resolve postId — if not provided and pathname looks like article slug, look up
-    let postId: string | null = body.postId || null;
-    if (!postId) {
-      const m = body.pathname.match(/^\/([a-z0-9-]+)$/);
-      if (m) {
-        const slug = m[1];
-        // Skip known top-level routes
-        const skip = new Set([
-          "about",
-          "contact",
-          "privacy",
-          "terms",
-          "search",
-          "category",
-          "tag",
-          "login",
-          "dispute",
-          "unsubscribe",
-          "p",
-        ]);
-        if (!skip.has(slug)) {
-          const post = await prisma.post.findUnique({
-            where: { slug },
-            select: { id: true },
-          });
-          if (post) postId = post.id;
-        }
-      }
+    // Skip bots entirely — they generate the bulk of useless analytics writes
+    if (isBot) return NextResponse.json({ ok: true, skipped: "bot" });
+
+    // postId resolution removed — saves 1 DB query per page view.
+    // Pathname is enough; we can resolve postId in batch later if needed.
+    const postId: string | null = body.postId || null;
+
+    try {
+      await prisma.postView.create({
+        data: {
+          postId,
+          pathname: body.pathname.slice(0, 500),
+          ip,
+          country,
+          city,
+          referer: body.referer ? body.referer.slice(0, 500) : null,
+          userAgent: userAgent.slice(0, 500) || null,
+          isBot: false,
+          sessionId: body.sessionId || null,
+        },
+      });
+    } catch {
+      // Best-effort. If DB is at capacity, silently skip — never break the page.
     }
 
-    await prisma.postView.create({
-      data: {
-        postId,
-        pathname: body.pathname.slice(0, 500),
-        ip,
-        country,
-        city,
-        referer: body.referer ? body.referer.slice(0, 500) : null,
-        userAgent: userAgent.slice(0, 500) || null,
-        isBot,
-        sessionId: body.sessionId || null,
-      },
-    });
-
     return NextResponse.json({ ok: true });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed";
-    return NextResponse.json({ error: msg }, { status: 500 });
+  } catch {
+    // Outer catch is also best-effort — analytics must NEVER 500
+    return NextResponse.json({ ok: true, skipped: "error" });
   }
 }

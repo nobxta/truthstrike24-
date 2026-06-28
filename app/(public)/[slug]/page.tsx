@@ -14,6 +14,10 @@ interface Props {
   params: { slug: string };
 }
 
+// Cache articles for 30 minutes — they rarely change after publish.
+// Dramatically cuts DB load when individual articles get traffic.
+export const revalidate = 1800;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const post = await prisma.post.findUnique({
     where: { slug: params.slug, status: "published" },

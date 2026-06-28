@@ -21,6 +21,39 @@ try {
 
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const crypto = require("crypto");
+
+async function uploadToCloudinary(imageUrl) {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    console.warn("   Cloudinary missing, returning expiring URL.");
+    return imageUrl;
+  }
+
+  const ts = Math.round(new Date().getTime() / 1000).toString();
+  const sig = crypto.createHash("sha1").update(`timestamp=${ts}${apiSecret}`).digest("hex");
+  const form = new URLSearchParams();
+  form.append("file", imageUrl);
+  form.append("api_key", apiKey);
+  form.append("timestamp", ts);
+  form.append("signature", sig);
+
+  try {
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    return data.secure_url;
+  } catch (err) {
+    console.error("   Cloudinary upload err:", err.message);
+    return imageUrl;
+  }
+}
 
 /* ─── Config from env vars ─── */
 
@@ -246,7 +279,7 @@ async function generateImage(model, prompt) {
 
   const sj = await submit.json();
   const sd = sj.data || sj;
-  if (sd.outputs?.length) return sd.outputs[0];
+  if (sd.outputs?.length) return await uploadToCloudinary(sd.outputs[0]);
 
   // Poll
   const id = sd.id || sj.id;
@@ -259,7 +292,7 @@ async function generateImage(model, prompt) {
     const j = await r.json();
     const d = j.data || j;
     if (d.status === "completed" || d.status === "succeeded") {
-      if (d.outputs?.length) return d.outputs[0];
+      if (d.outputs?.length) return await uploadToCloudinary(d.outputs[0]);
       throw new Error("WaveSpeed: no outputs");
     }
     if (d.status === "failed") throw new Error(`WaveSpeed failed: ${d.error || "unknown"}`);
@@ -1398,7 +1431,7 @@ async function loop() {
       } catch (e) {
         console.error("[job loop error]", e.message);
       }
-      await new Promise((r) => setTimeout(r, 5 * 1000));
+      await new Promise((r) => setTimeout(r, 30 * 1000));
     }
   })();
 

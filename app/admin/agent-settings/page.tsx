@@ -334,7 +334,7 @@ export default function AgentSettingsPage() {
     load();
   }, [load]);
 
-  /* ── Poll status (10s) ── */
+  /* ── Poll status (60s — was 10s, cuts DB load 6x) ── */
   useEffect(() => {
     const t = setInterval(async () => {
       try {
@@ -345,11 +345,11 @@ export default function AgentSettingsPage() {
           setCountdown(d.secondsUntilNextPost);
         }
       } catch { /* ignore */ }
-    }, 10_000);
+    }, 60_000);
     return () => clearInterval(t);
   }, []);
 
-  /* ── Poll dashboard (30s) ── */
+  /* ── Poll dashboard (5min — was 30s) ── */
   useEffect(() => {
     const t = setInterval(async () => {
       try {
@@ -360,7 +360,7 @@ export default function AgentSettingsPage() {
         if (dRes.ok) setDash(await dRes.json());
         if (uRes.ok) setUsage(await uRes.json());
       } catch { /* ignore */ }
-    }, 30_000);
+    }, 5 * 60_000);
     return () => clearInterval(t);
   }, []);
 

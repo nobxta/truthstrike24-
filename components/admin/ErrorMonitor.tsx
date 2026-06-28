@@ -49,7 +49,9 @@ export default function ErrorMonitor() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 30000);
+    // Poll every 5 minutes — was 30s. Reduces admin DB load 10x while still
+    // surfacing errors fast enough for an operator to act.
+    const id = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, [load]);
 
