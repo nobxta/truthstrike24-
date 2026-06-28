@@ -10,7 +10,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-const AUTHOR_ID = "cmqxuf5ni00009c1gmwsar8cx";
+const AUTHOR_ID = "cmqxuoydn00009cl0k2uvbkt1";
 
 async function ensureCategory() {
   let cat = await prisma.category.findUnique({

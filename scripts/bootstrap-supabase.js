@@ -15,8 +15,8 @@ const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
-const ADMIN_EMAIL = "chatgptforpython@gmail.com";
-const ADMIN_PASSWORD = "TruthStrike24!"; // CHANGE in admin UI after first login
+const ADMIN_EMAIL = "7xnobi@gmail.com";
+const ADMIN_PASSWORD = "Vivek@123"; // CHANGE in admin UI after first login
 const ADMIN_NAME = "Admin";
 
 const CATEGORIES = [

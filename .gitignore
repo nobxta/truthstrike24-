@@ -41,3 +41,5 @@ next-env.d.ts
 .q*.json
 .t*.json
 .agent_test.json
+.env.local.neon-backup
+.env.neon-backup
