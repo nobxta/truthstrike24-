@@ -159,11 +159,48 @@ async function callGroq(model, systemPrompt, userMessage) {
 }
 
 /**
- * NVIDIA NIM — OpenAI-compatible. Disables thinking-mode on DeepSeek/Kimi/GLM.
- * Free dev tier = 40 RPM. Models have no live web access; use for evergreen
- * content only.
+ * NVIDIA model fallback chain — when one hits its daily TPD limit, the worker
+ * automatically falls through to the next model. Each NVIDIA-hosted model has
+ * its OWN ~200K-token daily quota, so this multiplies effective capacity.
+ *
+ * Ordered by quality + diversity (avoid two models served by the same infra).
+ * Edit this list to control which models the auto-poster will use.
  */
-async function callNvidia(model, systemPrompt, userMessage) {
+const NVIDIA_FALLBACK_CHAIN = [
+  "openai/gpt-oss-120b",
+  "mistralai/mistral-medium-3.5-128b",
+  "moonshotai/kimi-k2.6",
+  "deepseek-ai/deepseek-v4-pro",
+  "z-ai/glm-5.1",
+];
+
+// Map<model, retryAtTimestamp> — tracks which models are "cooling down" after a 429.
+// We re-check after the timestamp passes.
+const _nvidiaCooldowns = new Map();
+
+function _parseRetryAfterMs(errorText) {
+  // Groq/NVIDIA error message: "Please try again in 25m9.84s"
+  const m = errorText.match(/try again in\s+(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s)?/i);
+  if (!m) return 60_000; // default 1 min if we can't parse
+  const min = parseInt(m[1] || "0", 10);
+  const sec = parseFloat(m[2] || "0");
+  return Math.max(5_000, Math.round((min * 60 + sec) * 1000));
+}
+
+function _isCooling(model) {
+  const t = _nvidiaCooldowns.get(model);
+  if (!t) return false;
+  if (Date.now() >= t) {
+    _nvidiaCooldowns.delete(model);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Single NVIDIA call — no fallback. Throws on non-2xx.
+ */
+async function _callNvidiaOnce(model, systemPrompt, userMessage) {
   const body = {
     model,
     max_tokens: 8192,
@@ -187,13 +224,74 @@ async function callNvidia(model, systemPrompt, userMessage) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${NVIDIA_KEY}` },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`NVIDIA ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const txt = await res.text();
+    const err = new Error(`NVIDIA ${res.status}: ${txt}`);
+    err.status = res.status;
+    err.rawText = txt;
+    throw err;
+  }
   const data = await res.json();
   return {
     text: data.choices[0].message.content,
     inputTokens: data.usage?.prompt_tokens ?? 0,
     outputTokens: data.usage?.completion_tokens ?? 0,
+    modelUsed: model,
   };
+}
+
+/**
+ * NVIDIA call with automatic fallback. Tries `primaryModel` first, then walks
+ * the NVIDIA_FALLBACK_CHAIN skipping cooling-down models. On 429, marks the
+ * model as cooling and tries the next.
+ *
+ * Returns { text, inputTokens, outputTokens, modelUsed } so the caller knows
+ * which model actually served the request.
+ */
+async function callNvidia(primaryModel, systemPrompt, userMessage) {
+  // Build the try order: primary first, then chain (deduped)
+  const order = [primaryModel];
+  for (const m of NVIDIA_FALLBACK_CHAIN) {
+    if (m !== primaryModel) order.push(m);
+  }
+
+  let lastErr = null;
+  for (const model of order) {
+    if (_isCooling(model)) {
+      const waitMs = (_nvidiaCooldowns.get(model) ?? 0) - Date.now();
+      console.log(`   ⏭  Skip ${model} (cooling ${Math.ceil(waitMs / 60000)}min)`);
+      continue;
+    }
+    try {
+      if (model !== primaryModel) {
+        console.log(`   🔄 Falling back to ${model}`);
+      }
+      const result = await _callNvidiaOnce(model, systemPrompt, userMessage);
+      return result;
+    } catch (err) {
+      lastErr = err;
+      const text = err.rawText || err.message || "";
+      const is429 =
+        err.status === 429 ||
+        /rate.?limit|tokens per day|TPD|RPM|rate_limit_exceeded/i.test(text);
+      if (is429) {
+        const waitMs = _parseRetryAfterMs(text);
+        _nvidiaCooldowns.set(model, Date.now() + waitMs);
+        console.warn(`   ⚠ ${model} rate-limited (cooling ${Math.ceil(waitMs / 60000)}min) — trying next`);
+        continue;
+      }
+      // Non-429 error — don't burn the fallback chain, just throw
+      throw err;
+    }
+  }
+
+  // Everything is cooling down — report the soonest one to come back
+  const coolingTimes = Array.from(_nvidiaCooldowns.values());
+  const soonest = coolingTimes.length > 0 ? Math.min(...coolingTimes) : Date.now() + 60_000;
+  const waitMin = Math.max(1, Math.ceil((soonest - Date.now()) / 60000));
+  throw new Error(
+    `All NVIDIA models in fallback chain are rate-limited. Soonest available in ~${waitMin}min. Last error: ${lastErr?.message ?? "unknown"}`
+  );
 }
 
 /* ─── Scheduled-publish promoter ─── */
@@ -863,12 +961,13 @@ Return JSON only.`;
       console.error(`   🔔 Push notify error: ${notifErr.message}`);
     }
 
-    /* Log usage */
+    /* Log usage — use the model that actually served the request (may differ
+       from requested if NVIDIA fallback kicked in) */
     if (aiResult.inputTokens > 0) {
       await prisma.aIUsage.create({
         data: {
           provider,
-          model,
+          model: aiResult.modelUsed || model,
           purpose: "post",
           inputTokens: aiResult.inputTokens,
           outputTokens: aiResult.outputTokens,
@@ -884,6 +983,9 @@ Return JSON only.`;
     console.log(`\n✅ SUCCESS in ${totalSec}s`);
     console.log(`   Title: ${post.title}`);
     console.log(`   URL:   /${post.slug}`);
+    if (aiResult.modelUsed && aiResult.modelUsed !== model) {
+      console.log(`   Model: ${aiResult.modelUsed} (auto-fallback from ${model})`);
+    }
     console.log(`   Image: ${featuredImage}`);
     if (parsed.source) console.log(`   Source: ${parsed.source}`);
   } catch (error) {
@@ -1182,12 +1284,12 @@ Today: ${today}`;
       },
     });
 
-    // Track in AIUsage
+    // Track in AIUsage (use actual served model when NVIDIA fallback kicked in)
     if (aiResult.inputTokens > 0) {
       await prisma.aIUsage.create({
         data: {
           provider: job.provider,
-          model: job.model,
+          model: aiResult.modelUsed || job.model,
           purpose: "manual_post",
           inputTokens: aiResult.inputTokens,
           outputTokens: aiResult.outputTokens,
@@ -1433,8 +1535,11 @@ RULES:
 }
 
 async function loop() {
-  console.log(`\n🟢 Worker started. Polling DB every 60s for cron + every 5s for manual jobs.`);
-  console.log(`   Toggle the Active switch in frontend admin to pause/resume.\n`);
+  console.log(`\n🟢 Worker started. Polling DB every 60s for cron + every 30s for manual jobs.`);
+  console.log(`   Toggle the Active switch in frontend admin to pause/resume.`);
+  console.log(`   NVIDIA fallback chain (on rate-limit, walks down the list):`);
+  for (const m of NVIDIA_FALLBACK_CHAIN) console.log(`     • ${m}`);
+  console.log("");
 
   // On startup: report status, but DO NOT generate immediately.
   // The main loop below will check the interval and only post when due.
