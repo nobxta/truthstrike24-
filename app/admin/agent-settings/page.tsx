@@ -48,6 +48,10 @@ interface Settings {
   autoReplyEnabled: boolean;
   autoReplyMinutes: number;
   imageGenEnabled: boolean;
+  onDemandProvider: string;
+  onDemandModel: string;
+  onDemandImagesEnabled: boolean;
+  onDemandWebSearch: boolean;
 }
 
 interface AgentStatus {
@@ -152,7 +156,11 @@ const DEFAULT: Settings = {
   postIntervalMinutes: 60,
   autoReplyEnabled: true,
   autoReplyMinutes: 60,
-  imageGenEnabled: true,
+  imageGenEnabled: false,
+  onDemandProvider: "anthropic",
+  onDemandModel: "claude-sonnet-4-5",
+  onDemandImagesEnabled: true,
+  onDemandWebSearch: true,
 };
 
 const MODEL_SPEED_GUIDE = [
@@ -739,6 +747,88 @@ export default function AgentSettingsPage() {
             </div>
           </div>
         )}
+
+        {/* ═══════════════════════════════════════════ */}
+        {/* SECTION 1.5 — ON-DEMAND GENERATOR           */}
+        {/* ═══════════════════════════════════════════ */}
+
+        <div className="rounded-xl border-2 border-purple-200 shadow-lg bg-gradient-to-br from-purple-50 via-white to-violet-50 overflow-hidden">
+          <div className="px-5 py-4 bg-gradient-to-r from-purple-600 to-violet-600 text-white">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center">
+                <Sparkles size={18} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold">On-Demand Generator</h3>
+                <p className="text-[12px] text-white/85">
+                  Premium article — uses Anthropic Claude with web search + image. Triggered manually only.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SSelect
+                label="On-Demand Provider"
+                value={s.onDemandProvider}
+                onChange={(v) => up("onDemandProvider", v)}
+                options={Object.entries(PROVIDER_MODELS).map(([k, v]) => ({ value: k, label: v.label }))}
+              />
+              <SSelect
+                label="On-Demand Model"
+                value={s.onDemandModel}
+                onChange={(v) => up("onDemandModel", v)}
+                options={(PROVIDER_MODELS[s.onDemandProvider as Provider]?.models || []).map((m) => ({ value: m.id, label: m.name, desc: m.desc }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-start justify-between gap-3 px-3 py-3 rounded-lg bg-white border border-gray-200">
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-gray-800">Generate image</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Includes a WaveSpeed-generated hero image
+                  </p>
+                </div>
+                <Toggle on={s.onDemandImagesEnabled} onClick={() => up("onDemandImagesEnabled", !s.onDemandImagesEnabled)} />
+              </div>
+              <div className="flex items-start justify-between gap-3 px-3 py-3 rounded-lg bg-white border border-gray-200">
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-gray-800">Web search (real news)</p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Required for current events. Anthropic only.
+                  </p>
+                </div>
+                <Toggle on={s.onDemandWebSearch} onClick={() => up("onDemandWebSearch", !s.onDemandWebSearch)} />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={runNews}
+              disabled={running !== null}
+              className="w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white text-[14px] font-bold shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {running === "news" ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  {runStage || "Generating..."}
+                </>
+              ) : (
+                <>
+                  <Sparkles size={15} />
+                  Generate Article Now
+                </>
+              )}
+            </button>
+            <p className="text-[10px] text-center text-gray-400">
+              This uses {s.onDemandProvider}/{s.onDemandModel}
+              {s.onDemandImagesEnabled ? " · with image" : " · no image"}
+              {s.onDemandWebSearch ? " · live web search" : ""}
+            </p>
+          </div>
+        </div>
 
         {/* ═══════════════════════════════════════════ */}
         {/* SECTION 2 — Agent Tabs                      */}

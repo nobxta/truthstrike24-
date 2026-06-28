@@ -93,8 +93,18 @@ model AgentSettings {
   // Auto-reply settings
   autoReplyEnabled Boolean @default(true)
   autoReplyMinutes Int     @default(60)
-  // Image agent toggle
-  imageGenEnabled Boolean  @default(true)
+  // Image agent toggle (controls AUTO-poster images, default OFF to save credits)
+  imageGenEnabled Boolean  @default(false)
+
+  // ─── ON-DEMAND generator (separate from auto-poster) ───
+  // Used when you click "Generate Now" in admin. Defaults to Anthropic Claude
+  // with web search + images for premium quality.
+  onDemandProvider       String  @default("anthropic")
+  onDemandModel          String  @default("claude-sonnet-4-5")
+  onDemandImagesEnabled  Boolean @default(true)
+  onDemandWebSearch      Boolean @default(true)
+  lastOnDemandAt         DateTime?
+
   updatedAt       DateTime @updatedAt
 }
 

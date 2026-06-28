@@ -192,22 +192,22 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!settings.enabled) {
-      return NextResponse.json(
-        { error: "News agent is disabled. Enable it in Agent Settings." },
-        { status: 400 }
-      );
-    }
+    // Note: We allow on-demand runs even when the auto-poster is disabled.
+    // The "enabled" flag only controls cron-driven posts on the VPS worker.
 
-    const provider = (settings.postProvider || "anthropic") as
+    // On-demand generation always uses the dedicated On-Demand settings —
+    // typically Anthropic Claude with web search + images for premium quality.
+    const provider = (settings.onDemandProvider || "anthropic") as
       | "anthropic"
       | "openai"
-      | "groq";
-    const model = settings.model;
+      | "groq"
+      | "nvidia";
+    const model = settings.onDemandModel || "claude-sonnet-4-5";
     const imageModel = settings.imageModel || "wavespeed-ai/flux-dev";
     const watermarkUrl =
       settings.watermarkUrl || process.env.NEXT_PUBLIC_WATERMARK_URL || "";
-    const useWebSearch = settings.useWebSearch === true; // default false
+    const useWebSearch = settings.onDemandWebSearch !== false; // default true
+    const generateImage = settings.onDemandImagesEnabled !== false; // default true
     const wordLimit = settings.wordLimit || 600;
     const writingStyle =
       settings.writingStyle ||
@@ -390,9 +390,17 @@ REMEMBER: No filler. No vague language. Specific people, specific numbers, speci
         isAgentPost: true,
         isBreaking: false,
         imagePrompt: parsed.imagePrompt,
-        imageStatus: "pending",
+        imageStatus: generateImage ? "pending" : "none",
       },
     });
+
+    // Stamp lastOnDemandAt so admin UI can show "last manual run" time
+    await prisma.agentSettings
+      .update({
+        where: { id: "singleton" },
+        data: { lastOnDemandAt: new Date() },
+      })
+      .catch(() => {/* never block the response */});
 
     /* ── Step 7: Log usage + agent run ── */
     if (aiInputTokens > 0 || aiOutputTokens > 0) {
