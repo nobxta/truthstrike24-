@@ -166,12 +166,16 @@ async function callGroq(model, systemPrompt, userMessage) {
  * Ordered by quality + diversity (avoid two models served by the same infra).
  * Edit this list to control which models the auto-poster will use.
  */
+// IDs verified against NVIDIA NIM catalog (build.nvidia.com).
+// If a model is renamed/retired NVIDIA returns a 404 — fallback skips it and
+// moves to the next one. To add more models, copy the exact ID from
+// build.nvidia.com → Model card → "Run Anywhere" endpoint string.
 const NVIDIA_FALLBACK_CHAIN = [
   "openai/gpt-oss-120b",
-  "mistralai/mistral-medium-3.5-128b",
-  "moonshotai/kimi-k2.6",
-  "deepseek-ai/deepseek-v4-pro",
-  "z-ai/glm-5.1",
+  "openai/gpt-oss-20b",
+  "meta/llama-3.3-70b-instruct",
+  "deepseek-ai/deepseek-r1",
+  "qwen/qwen2.5-72b-instruct",
 ];
 
 // Map<model, retryAtTimestamp> — tracks which models are "cooling down" after a 429.
@@ -274,13 +278,22 @@ async function callNvidia(primaryModel, systemPrompt, userMessage) {
       const is429 =
         err.status === 429 ||
         /rate.?limit|tokens per day|TPD|RPM|rate_limit_exceeded/i.test(text);
+      const isModelMissing =
+        err.status === 404 ||
+        /model_not_found|does not exist|do not have access/i.test(text);
       if (is429) {
         const waitMs = _parseRetryAfterMs(text);
         _nvidiaCooldowns.set(model, Date.now() + waitMs);
         console.warn(`   ⚠ ${model} rate-limited (cooling ${Math.ceil(waitMs / 60000)}min) — trying next`);
         continue;
       }
-      // Non-429 error — don't burn the fallback chain, just throw
+      if (isModelMissing) {
+        // Park it for 24h so we don't keep hitting the same dead ID every minute
+        _nvidiaCooldowns.set(model, Date.now() + 24 * 60 * 60 * 1000);
+        console.warn(`   ⚠ ${model} not available (404) — parking 24h, trying next`);
+        continue;
+      }
+      // Other errors — don't burn the fallback chain, just throw
       throw err;
     }
   }
@@ -884,11 +897,16 @@ Return JSON only.`;
       throw new Error(`Generation failed after ${MAX_ATTEMPTS} attempts. Last issue: ${lastErr}`);
     }
 
-    /* Generate image */
-    console.log(`🎨 Generating image (${imageModel})...`);
-    const imgStart = Date.now();
-    const featuredImage = await generateImage(imageModel, parsed.imagePrompt);
-    console.log(`   ✓ Image done in ${((Date.now() - imgStart) / 1000).toFixed(1)}s`);
+    /* Generate image — respects Image Agent toggle (settings.imageGenEnabled) */
+    let featuredImage = "";
+    if (settings.imageGenEnabled) {
+      console.log(`🎨 Generating image (${imageModel})...`);
+      const imgStart = Date.now();
+      featuredImage = await generateImage(imageModel, parsed.imagePrompt);
+      console.log(`   ✓ Image done in ${((Date.now() - imgStart) / 1000).toFixed(1)}s`);
+    } else {
+      console.log(`🚫 Image agent OFF — skipping image generation`);
+    }
 
     /* Find author + category */
     const author = await prisma.user.findFirst();
@@ -926,7 +944,7 @@ Return JSON only.`;
         categoryId: category.id,
         isAgentPost: true,
         imagePrompt: parsed.imagePrompt,
-        imageStatus: "done",
+        imageStatus: settings.imageGenEnabled ? "done" : "none",
       },
     });
 
